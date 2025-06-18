@@ -69,10 +69,6 @@ class Settings(BaseModel):
     authjwt_cookie_path: str = "/"
     authjwt_cookie_domain: Optional[str] = None  # Set to your domain if needed
 
-@AuthJWT.load_config
-def get_config():
-    return Settings()
-
 # print(db_param['jwt_token'])
 
 class LoginModel(BaseModel):
