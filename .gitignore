@@ -135,7 +135,7 @@ venv/
 ENV/
 env.bak/
 venv.bak/
-
+pizzadeliveryapi_env
 # Spyder project settings
 .spyderproject
 .spyproject
