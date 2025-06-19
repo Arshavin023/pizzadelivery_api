@@ -8,7 +8,7 @@ from fastapi_jwt_auth import AuthJWT
 db_param = read_db_config()
 
 class SignUpModel(BaseModel):
-    # id:Optional[str]
+    id:Optional[UUID]
     username:str
     email:str
     password:str
@@ -18,7 +18,6 @@ class SignUpModel(BaseModel):
     state:Optional[str] 
     local_government:Optional[str] 
     phone_number:Optional[str]
-    # created_at:Optional[datetime] = datetime.now()
     is_staff:Optional[bool] = False
     is_active:Optional[bool] = False
 
@@ -83,6 +82,41 @@ class LoginModel(BaseModel):
                 "password": "securepassword123"
             }
         }
+
+class OrderModel(BaseModel):
+    id:Optional[UUID]
+    quantity:int
+    order_status:Optional[str]
+    pizza_size: Optional[str]
+    flavour:Optional[str]
+    user_id:Optional[UUID]
+    total_cost:Optional[float] 
+    time_created:Optional[datetime] = datetime.now()
+
+    class Config:
+        orm_mode = True
+        from_attributes = True
+        json_schema_extra = {
+            "example": {
+                "quantity": 2,
+                "pizza_size": "MEDIUM",
+                "flavour": "PEPPERONI"
+                    }
+        }
+
+class OrderResponseModel(BaseModel):
+    message: Optional[str] 
+    order_id: Optional[UUID]
+    pizza_size: Optional[str]
+    quantity: int
+    flavour: Optional[str]
+    total_cost: Optional[float] = 0.0
+    order_status: Optional[str]
+    time_created: datetime
+
+    class Config:
+        from_attributes = True  # For ORM compatibility (Pydantic v2+)
+        orm_mode = True 
 
 class TokenResponseModel(BaseModel):
     access_token: str

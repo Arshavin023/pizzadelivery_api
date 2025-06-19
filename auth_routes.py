@@ -1,9 +1,9 @@
 from fastapi import APIRouter, status, Depends
 from sqlalchemy import exists
 from database import engine, SessionLocal #, Session
-from schemas import SignUpModel,UserResponseModel,LoginModel
-from models import Customer, Order
 from sqlalchemy.orm import Session as Session_v2
+from schemas import SignUpModel,UserResponseModel,LoginModel
+from models import User, Order
 from fastapi.exceptions import HTTPException
 from werkzeug.security import generate_password_hash, check_password_hash
 from fastapi_jwt_auth import AuthJWT
@@ -39,12 +39,12 @@ async def hello(
 @auth_router.post("/signup",response_model=UserResponseModel, 
                   status_code=status.HTTP_201_CREATED)
 async def signup(user: SignUpModel,db: Session_v2 = Depends(get_db)):
-    if db.query(exists().where(Customer.username == user.username)).scalar():
+    if db.query(exists().where(User.username == user.username)).scalar():
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Username already exists")
-    if db.query(exists().where(Customer.email == user.email)).scalar():
+    if db.query(exists().where(User.email == user.email)).scalar():
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already exists")
     
-    new_user = Customer(
+    new_user = User(
         username=user.username,
         email=user.email,
         password=generate_password_hash(user.password),
@@ -64,7 +64,7 @@ async def signup(user: SignUpModel,db: Session_v2 = Depends(get_db)):
 # Login Route
 @auth_router.post("/login")
 async def login(user: LoginModel, db: Session_v2 = Depends(get_db), Authorize: AuthJWT = Depends()):
-    db_user = db.query(Customer).with_entities(Customer.username, Customer.password).filter_by(username=user.username).first()
+    db_user = db.query(User).with_entities(User.username, User.password).filter_by(username=user.username).first()
     if not db_user or not check_password_hash(db_user.password, user.password):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, 
                             detail="Invalid username or password")
@@ -78,6 +78,7 @@ async def login(user: LoginModel, db: Session_v2 = Depends(get_db), Authorize: A
     }
     return jsonable_encoder(response)
 
+# Refresh Token Route
 @auth_router.get("/refresh")
 async def refresh(Authorize: AuthJWT = Depends()):
     try:

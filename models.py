@@ -6,9 +6,10 @@ from sqlalchemy_utils.types import ChoiceType
 from datetime import datetime
 from sqlalchemy.orm import relationship
 from sqlalchemy import event  
+from sqlalchemy import func
 
-class Customer(Base):
-    __tablename__ = 'customers'
+class User(Base):
+    __tablename__ = 'users'
     id = Column(PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     username = Column(String(50), unique=False, nullable=False)
     email = Column(String(100), unique=True, nullable=False)
@@ -19,15 +20,15 @@ class Customer(Base):
     state = Column(String(50), nullable=True)
     local_government = Column(String(50), nullable=True)
     phone_number = Column(String(15), nullable=True)
-    time_created = Column(DateTime, default=datetime.now)
+    time_created = Column(DateTime, default=func.now())
     is_staff = Column(Boolean, default=False)
     is_active = Column(Boolean, default=False)
 
     # Relationship to Order
-    orders = relationship('Order', back_populates='customer', cascade='all, delete-orphan')
+    orders = relationship('Order', back_populates='user', cascade='all, delete-orphan')
 
     def __repr__(self):
-        return f"<Customer(id={self.id}, username={self.username}, email={self.email})>"
+        return f"<User(id={self.id}, username={self.username}, email={self.email})>"
 
 
 class Order(Base):
@@ -74,10 +75,10 @@ class Order(Base):
     order_status = Column(ChoiceType(choices=ORDER_STATUSES), default='PENDING')
     pizza_size = Column(ChoiceType(choices=PIZZA_SIZES), default='SMALL')
     flavour = Column(ChoiceType(choices=PIZZA_FLAVOURS), default='MARGHERITA')
-    customer_id = Column(PG_UUID(as_uuid=True), ForeignKey('customers.id'), nullable=False)
+    user_id = Column(PG_UUID(as_uuid=True), ForeignKey('users.id'), nullable=False)
     total_cost = Column(Integer, nullable=False, default=0)
-    time_created = Column(DateTime, default=datetime.now)
-    customer = relationship('Customer', back_populates='orders')
+    time_created = Column(DateTime, default=func.now())
+    user = relationship('User', back_populates='orders')
 
     @property
     def price(self):
@@ -95,6 +96,16 @@ class Order(Base):
             f"quantity={self.quantity}, status={self.order_status}, "
             f"size={self.pizza_size}, flavour={self.flavour})>"
         )
+    
+    @property
+    def pizza_size_code(self):
+        return self.pizza_size.code if self.pizza_size else None
+    @property
+    def flavour_code(self):
+        return self.flavour.code if self.flavour else None
+    @property
+    def order_status_code(self):
+        return self.order_status.code if self.order_status else None
 
 @event.listens_for(Order, 'before_insert')
 @event.listens_for(Order, 'before_update')

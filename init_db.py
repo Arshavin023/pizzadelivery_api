@@ -1,4 +1,4 @@
-from database import Session, Base, engine
-from models import Customer, Order
+from database import Base, engine
+from models import User, Order
 
 Base.metadata.create_all(bind=engine)
