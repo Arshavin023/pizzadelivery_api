@@ -132,7 +132,7 @@ async def get_specific_order(order_id:UUID, db: Session_v2 = Depends(get_db),
         return jsonable_encoder(response) # Return Order 
     
     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, 
-                            detail="You are not authorized to view all orders")
+                            detail="You are not authorized to view this order")
 
 
 # Get Current User's Orders Route
