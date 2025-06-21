@@ -115,6 +115,7 @@ async def get_user_info(Authorize: AuthJWT = Depends(),
     }
     return jsonable_encoder(response)
 
+
 # Update User Info Route
 @userinfo_router.put("/update", response_model=None, 
                      status_code=status.HTTP_200_OK)
