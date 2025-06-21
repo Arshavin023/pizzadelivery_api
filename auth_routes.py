@@ -25,9 +25,14 @@ def get_db():
         
 # HomePage Route
 @auth_router.get("/")
-async def hello(
-    Authorize: AuthJWT = Depends()
-    ):
+async def hello(Authorize: AuthJWT = Depends()):
+    """
+        ## A sample route to test JWT authentication.
+        This route requires a valid JWT token to access.
+        It returns a simple message "Hello World" if the token is valid.
+        ### JWT Authentication Required
+        - The JWT token must be included in the request header as `Authorization    Bearer <token>`.      
+    """
     try:
         Authorize.jwt_required()
     except Exception as e:
@@ -39,6 +44,26 @@ async def hello(
 @auth_router.post("/signup",response_model=UserResponseModel, 
                   status_code=status.HTTP_201_CREATED)
 async def signup(user: SignUpModel,db: Session_v2 = Depends(get_db)):
+    """
+    ## User Registration
+    This route allows a new user to register by providing their details.
+    ### Request Body
+    - `username`: Unique username for the user.
+    - `email`: User's email address.
+    - `password`: User's password (will be hashed).
+    - `first_name`: User's first name.
+    - `last_name`: User's last name.
+    - `address`: User's address.
+    - `state`: User's state.
+    - `local_government`: User's local government area.
+    - `phone_number`: User's phone number.
+    - `is_staff`: Optional, indicates if the user is a staff member (default is False).
+    - `is_active`: Optional, indicates if the user account is active (default is False).
+    ### Response
+    - Returns the created user details.
+    ### JWT Authentication Required
+    - The JWT token must be included in the request header as `Authorization Bearer <token>`.
+    """
     if db.query(exists().where(User.username == user.username)).scalar():
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Username already exists")
     if db.query(exists().where(User.email == user.email)).scalar():
@@ -63,7 +88,19 @@ async def signup(user: SignUpModel,db: Session_v2 = Depends(get_db)):
     
 # Login Route
 @auth_router.post("/login")
-async def login(user: LoginModel, db: Session_v2 = Depends(get_db), Authorize: AuthJWT = Depends()):
+async def login(user: LoginModel, db: Session_v2 = Depends(get_db), 
+                Authorize: AuthJWT = Depends()):
+    """
+    ## User Login
+    This route allows a user to log in by providing their username and password.
+    ### Request Body
+    - `username`: The username of the user.
+    - `password`: The password of the user.
+    ### Response
+    - Returns an access token and a refresh token if the login is successful.
+    ### JWT Authentication Required
+    - The JWT token must be included in the request header as `Authorization Bearer <token>`.
+    """
     db_user = db.query(User).with_entities(User.username, User.password).filter_by(username=user.username).first()
     if not db_user or not check_password_hash(db_user.password, user.password):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, 
@@ -81,6 +118,14 @@ async def login(user: LoginModel, db: Session_v2 = Depends(get_db), Authorize: A
 # Refresh Token Route
 @auth_router.get("/refresh")
 async def refresh(Authorize: AuthJWT = Depends()):
+    """
+    ## Refresh Access Token
+    This route allows a user to refresh their access token using a valid refresh token.
+    ### JWT Authentication Required
+    - The JWT token must be included in the request header as `Authorization Bearer <refresh_token>`.
+    ### Response
+    - Returns a new access token if the refresh token is valid.
+    """
     try:
         Authorize.jwt_refresh_token_required()
         

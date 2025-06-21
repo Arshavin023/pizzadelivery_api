@@ -39,6 +39,27 @@ class SignUpModel(BaseModel):
             }
             }
         
+class UserUpdateModel(BaseModel):
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    address: Optional[str] = None
+    state: Optional[str] = None
+    local_government: Optional[str] = None
+    phone_number: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+        json_schema_extra = {
+            "example": {
+                "first_name": "Jane",
+                "last_name": "Doe",
+                "address": "123 Main St, Springfield",
+                "state": "Illinois",
+                "local_government": "Springfield",
+                "phone_number": "123-456-7890"
+            }
+        }
+
 class UserResponseModel(BaseModel):
     id: UUID
     username: str
@@ -67,8 +88,6 @@ class Settings(BaseModel):
     authjwt_cookie_samesite: str = "lax"  # Options: "lax", "strict", "none"
     authjwt_cookie_path: str = "/"
     authjwt_cookie_domain: Optional[str] = None  # Set to your domain if needed
-
-# print(db_param['jwt_token'])
 
 class LoginModel(BaseModel):
     username: str
@@ -104,11 +123,25 @@ class OrderModel(BaseModel):
                     }
         }
 
+class OrderStatusUpdateModel(BaseModel):
+    order_status: Optional[str] = "PENDING"
+
+    class Config:
+        from_attributes = True
+        orm_mode = True
+        json_schema_extra = {
+            "example": {
+                "order_status": "DELIVERED"
+            }
+        }
+
+
 class OrderResponseModel(BaseModel):
     message: Optional[str] 
     order_id: Optional[UUID]
     pizza_size: Optional[str]
-    quantity: int
+    quantity: Optional[int]
+    order_status: Optional[str]
     flavour: Optional[str]
     total_cost: Optional[float] = 0.0
     order_status: Optional[str]
