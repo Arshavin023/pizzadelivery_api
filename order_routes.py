@@ -1,9 +1,8 @@
 from fastapi import APIRouter, status, Depends
 from fastapi_jwt_auth import AuthJWT
 from models import User, Order
-from schemas import OrderModel,OrderResponseModel,OrderStatusUpdateModel
-from database import engine, SessionLocal #, Session
-from sqlalchemy.orm import Session as Session_v2
+from schemas import OrderModel,OrderResponseModel,OrderStatusUpdateModel,OrderListResponseModel
+from database import get_async_db  # <-- updated import
 from fastapi.exceptions import HTTPException
 from fastapi.encoders import jsonable_encoder
 from datetime import datetime
@@ -16,12 +15,18 @@ order_router = APIRouter(
     tags=["orders"]
 )
 
-def get_db():
-    db = SessionLocal()
+async def require_jwt(Authorize: AuthJWT = Depends()):
     try:
-        yield db
-    finally:
-        db.close()
+        Authorize.jwt_required()
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, 
+                            detail="Invalid or expired token")
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Invalid JWT header"
+            )
+    return Authorize.get_jwt_subject()
 
 @order_router.get("/")
 async def hello(Authorize: AuthJWT = Depends()):
@@ -32,20 +37,14 @@ async def hello(Authorize: AuthJWT = Depends()):
         ### JWT Authentication Required
         - The JWT token must be included in the request header as `Authorization    Bearer <token>`.      
     """
-    try:
-        Authorize.jwt_required()
-    except Exception as e:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                             detail="Invalid JWT header")
-    except Exception as e:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, 
-                            detail="Invalid or expired token")
+    await require_jwt(Authorize)
     return {"message": "Hello World"}
 
 # Place Order Route
 @order_router.post("/order", response_model=OrderResponseModel, 
                    status_code=status.HTTP_201_CREATED)
-async def place_order(order: OrderModel, db: Session_v2 = Depends(get_db),
+async def place_order(order: OrderModel, 
+                      db: AsyncSession = Depends(get_async_db),  # <- AsyncSession here
                        Authorize: AuthJWT = Depends()):
     """
         ## Place an Order
@@ -58,23 +57,22 @@ async def place_order(order: OrderModel, db: Session_v2 = Depends(get_db),
         - `flavour`: The flavour of the pizza (e.g., PEPPERONI, MARGHERITA).
         ### Response            
     """
-    try:
-        Authorize.jwt_required()
-    except Exception as e:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, 
-                            detail="Invalid or expired token")
+    current_user = await require_jwt(Authorize)
+    result = await db.execute(select(User.id).where(User.username == current_user))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
     
-    current_user = Authorize.get_jwt_subject()
-    user = db.query(User).with_entities(User.id).filter(User.username == current_user).first()
     new_order = Order(
         pizza_size=order.pizza_size,
         quantity=order.quantity,
-        flavour=order.flavour
+        flavour=order.flavour,
+        user_id=user
     )
-    new_order.user_id = user.id
 
     db.add(new_order)
-    db.commit()
+    await db.commit()
+    await db.refresh(new_order)
 
     response = {
         "message": "Order placed successfully",
@@ -89,9 +87,9 @@ async def place_order(order: OrderModel, db: Session_v2 = Depends(get_db),
     # return 'successfully created order'
     return jsonable_encoder(response)  # Return the newly created order as a JSON respons
 
-# List All Orders Route
-@order_router.get("/list_all_orders", response_model=None)
-async def list_all_orders(db: Session_v2 = Depends(get_db),
+# List All Orders Route SuperAdmin
+@order_router.get("/list_all_orders", response_model=OrderListResponseModel)
+async def list_all_orders(db: AsyncSession = Depends(get_async_db),
                      Authorize: AuthJWT = Depends()):
     """
     ## List All Orders
@@ -101,29 +99,30 @@ async def list_all_orders(db: Session_v2 = Depends(get_db),
     ### Response
     - Returns a list of all orders with their details.
     """
-    try:
-        Authorize.jwt_required()
-    except Exception as e:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, 
-                            detail="Invalid or expired token")
-    
-    current_user = Authorize.get_jwt_subject()
-    user = db.query(User).with_entities(User.is_staff).filter(User.username == current_user).first()
-    if user.is_staff:
-        orders = db.query(Order).with_entities(Order.id,Order.flavour,
-                                               Order.quantity,Order.order_status,
-                                               Order.time_created).all()
-        response = {"message": "SuperAdmin All Orders retrieved successfully",
-        "orders": [
-        {
-            "order_id": order.id,
-            "flavour": order.flavour.code,
-            "quantity": order.quantity,
-            "order_status": order.order_status.code,
-            "time_created": order.time_created.isoformat() if isinstance(order.time_created, datetime) else order.time_created,
-        }
-        for order in orders]}
+    current_user = await require_jwt(Authorize)
+    user = await db.execute(select(User.is_staff).where(User.username == current_user))
+    is_staff = user.scalar_one_or_none()
+    if is_staff:
+        # Fetch all orders from the database
+        result = await db.execute(select(Order.id,Order.flavour,Order.pizza_size,
+                                         Order.quantity,Order.order_status,
+                                         Order.time_created,Order.total_cost))
+        orders = result.fetchall()
 
+        order_items = [
+        OrderResponseModel(
+            order_id=order.id,
+            flavour=order.flavour.code,
+            pizza_size=order.pizza_size.code,
+            quantity=order.quantity,
+            total_cost=order.total_cost,
+            order_status=order.order_status.code,
+            time_created=order.time_created.isoformat() if isinstance(order.time_created, datetime) else str(order.time_created),
+        ) for order in orders
+        ]
+
+        response =  OrderListResponseModel(message="SuperAdmin All Orders retrieved successfully",
+                                           orders=order_items)
 
         return jsonable_encoder(response)
     
@@ -132,7 +131,7 @@ async def list_all_orders(db: Session_v2 = Depends(get_db),
 
 # Get Any User's Order Route
 @order_router.get("/orders/{order_id}", response_model=OrderResponseModel)
-async def get_specific_order(order_id:UUID, db: Session_v2 = Depends(get_db),
+async def get_specific_order(order_id:UUID, db: AsyncSession = Depends(get_async_db),
                           Authorize: AuthJWT = Depends()):
     """
     ## Get Specific Order
@@ -144,20 +143,16 @@ async def get_specific_order(order_id:UUID, db: Session_v2 = Depends(get_db),
     ### Response
     - Returns the details of the specified order.   
     """
-    try:
-        Authorize.jwt_required()
-    except Exception as e:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, 
-                            detail="Invalid or expired token")
-    current_user = Authorize.get_jwt_subject()
-    user = db.query(User).with_entities(User.is_staff).filter(User.username == current_user).first()
-    if user.is_staff:
-        order = db.query(Order).filter(Order.id == order_id).first()  
+    current_user = await require_jwt(Authorize)
+    user = await db.execute(select(User.is_staff).where(User.username == current_user))
+    is_staff = user.scalar_one_or_none()
+    if is_staff:
+        result = await db.execute(select(Order).where(Order.id == order_id))
+        order = result.scalar_one_or_none()
         if not order:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, 
                             detail="Order not found")
         response = {
-            "message": "SuperAdmin SpecificOrder retrieved successfully",
             "order_id": order.id,
             "pizza_size": order.pizza_size_code,
             "quantity": order.quantity,
@@ -166,7 +161,6 @@ async def get_specific_order(order_id:UUID, db: Session_v2 = Depends(get_db),
             "order_status": order.order_status_code,
             "time_created": order.time_created.isoformat(),
         }
-        # return 'successfully created order'
         return jsonable_encoder(response) # Return Order 
     
     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, 
@@ -174,8 +168,8 @@ async def get_specific_order(order_id:UUID, db: Session_v2 = Depends(get_db),
 
 
 # Get Current User's Orders Route
-@order_router.get("/user/orders", response_model=None)
-async def get_my_orders(db: Session_v2 = Depends(get_db),
+@order_router.get("/user/orders", response_model=OrderListResponseModel)
+async def get_my_orders(db: AsyncSession = Depends(get_async_db),
                         Authorize: AuthJWT = Depends()):
     """
     ## Get Current User's Orders
@@ -185,35 +179,36 @@ async def get_my_orders(db: Session_v2 = Depends(get_db),
     ### Response
     - Returns a list of all orders placed by the current user with their details.
     """
-    try:
-        Authorize.jwt_required()
-    except Exception as e:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, 
-                            detail="Invalid or expired token")
-    
-    current_user = Authorize.get_jwt_subject()
-    user = db.query(User).with_entities(User.id).filter(User.username == current_user).first()
-    
-    orders = db.query(Order).filter(Order.user_id == user.id).all()
+    current_user = await require_jwt(Authorize)
+    user = await db.execute(select(User.id).where(User.username == current_user))
+    user = user.scalar_one_or_none()
+    result = await db.execute(
+        select(Order.id, Order.flavour,Order.pizza_size,
+               Order.quantity,Order.order_status,Order.total_cost,
+               Order.time_created).where(Order.user_id == user))
+    orders = result.fetchall()
 
-    response = {"message": "CurrentUser All Orders retrieved successfully",
-        "orders": [
-        {
-            "order_id": order.id,
-            "flavour": order.flavour.code,
-            "pizza_size": order.pizza_size.code,
-            "quantity": order.quantity,
-            "total_cost": order.total,
-            "order_status": order.order_status.code,
-            "time_created": order.time_created.isoformat() if isinstance(order.time_created, datetime) else order.time_created,
-        }
-        for order in orders]}
+    order_items = [
+        OrderResponseModel(
+            order_id=order.id,
+            flavour=order.flavour.code,
+            pizza_size=order.pizza_size.code,
+            quantity=order.quantity,
+            total_cost=order.total_cost,
+            order_status=order.order_status.code,
+            time_created=order.time_created.isoformat() if isinstance(order.time_created, datetime) else str(order.time_created),
+        ) for order in orders
+        ]
+
+    response =  OrderListResponseModel(message="CurrentUser All Orders retrieved successfully",
+                                           orders=order_items)
    
     return jsonable_encoder(response)
 
 # Get Current User's Order by ID Route
 @order_router.get("/user/orders/order/{order_id}", response_model=OrderResponseModel)
-async def get_my_order(order_id: UUID, db: Session_v2 = Depends(get_db),
+async def get_my_order(order_id: UUID, 
+                       db: AsyncSession = Depends(get_async_db),
                        Authorize: AuthJWT = Depends()):
     """
     ## Get Current User's Order by ID
@@ -225,38 +220,40 @@ async def get_my_order(order_id: UUID, db: Session_v2 = Depends(get_db),
     ### Response
     - Returns the details of the specified order placed by the current user.
     """
-    try:
-        Authorize.jwt_required()
-    except Exception as e:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, 
-                            detail="Invalid or expired token")
-    
-    current_user = Authorize.get_jwt_subject()
-    user = db.query(User).with_entities(User.id).filter(User.username == current_user).first()
-    
-    order = db.query(Order).filter(Order.id == order_id, Order.user_id == user.id).first()
-    
+    current_user = await require_jwt(Authorize)
+    user = await db.execute(select(User.id).where(User.username == current_user))
+    user = user.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    result = await db.execute(select(Order.id,Order.flavour,Order.pizza_size,
+                                         Order.quantity,Order.order_status,Order.total_cost,
+                                         Order.time_created).where(Order.user_id == user,
+                                                                   Order.id == order_id))
+    order = result.first()
+
     if not order:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, 
-                            detail="Order not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found") 
     
+    (order_id, flavour, pizza_size, quantity,order_status,total_cost,time_created) = order
+
     response = {
-        "message": "CurrentUser SpecificOrder retrieved successfully",
-        "order_id": order.id,
-        "pizza_size": order.pizza_size_code,
-        "quantity": order.quantity,
-        "flavour": order.flavour_code,
-        "total_cost": order.total,
-        "order_status": order.order_status_code,
-        "time_created": order.time_created.isoformat(),
+        "order_id": order_id,
+        "flavour": flavour.code,
+        "pizza_size": pizza_size.code,
+        "quantity": quantity,
+        "total_cost": total_cost,
+        "order_status": order_status.code,
+        "time_created": time_created.isoformat(),
     }
-    
+  
     return jsonable_encoder(response)
 
 # Update User's Order Route
 @order_router.put("/order/update/{order_id}/", response_model=OrderResponseModel)
-async def update_order(order_id: UUID, order: OrderModel, db: Session_v2 = Depends(get_db),
-                          Authorize: AuthJWT = Depends()):
+async def update_order(order_id: UUID, order: OrderModel, 
+                       db: AsyncSession = Depends(get_async_db),
+                       Authorize: AuthJWT = Depends()):
     """
     ## Update User's Order
     # This route allows a user to update their existing order.
@@ -271,44 +268,44 @@ async def update_order(order_id: UUID, order: OrderModel, db: Session_v2 = Depen
     ### Response
     - Returns the updated order details.
     """
-    try:
-        Authorize.jwt_required()
-    except Exception as e:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, 
-                            detail="Invalid or expired token")
+    current_user = await require_jwt(Authorize)
+    user = await db.execute(select(User.id).where(User.username == current_user))
+    user = user.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     
-    current_user = Authorize.get_jwt_subject()
-    user = db.query(User).with_entities(User.id).filter(User.username == current_user).first()
+    result = await db.execute(select(Order).where(Order.user_id == user,Order.id == order_id))
+    order_to_update = result.scalar_one_or_none()
     
-    existing_order = db.query(Order).filter(Order.id == order_id, Order.user_id == user.id).first()
-    
-    if not existing_order:
+    if not order_to_update:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, 
                             detail="Order not found")
     
-    existing_order.pizza_size = order.pizza_size
-    existing_order.quantity = order.quantity
-    existing_order.flavour = order.flavour
-    existing_order.time_created = datetime.now()
-    db.commit()
+    order_to_update.pizza_size = order.pizza_size
+    order_to_update.quantity = order.quantity
+    order_to_update.flavour = order.flavour
+    order_to_update.time_created = datetime.now()
+    await db.commit()
+    await db.refresh(order_to_update)
+
     response = {
-        "message": "Order updated successfully",
-        "order_id": existing_order.id,
-        "pizza_size": existing_order.pizza_size_code,
-        "quantity": existing_order.quantity,
-        "flavour": existing_order.flavour_code,
-        "total_cost": existing_order.total,
-        "order_status": existing_order.order_status_code,
-        "time_created": existing_order.time_created.isoformat(),
+        "order_id": order_to_update.id,
+        "pizza_size": order_to_update.pizza_size_code,
+        "quantity": order_to_update.quantity,
+        "flavour": order_to_update.flavour_code,
+        "total_cost": order_to_update.total,
+        "order_status": order_to_update.order_status_code,
+        "time_created": order_to_update.time_created.isoformat(),
     }
     return jsonable_encoder(response)
+    
 
 # Update Order Status Route SuperAdmin
 @order_router.put("/order/update/status/{order_id}/", 
-                  response_model=OrderResponseModel)
+                  response_model=OrderStatusUpdateModel)
 async def update_order_status(order_id: UUID,
-                                order_status: OrderStatusUpdateModel,
-                               db: Session_v2 = Depends(get_db),
+                                updated_status: OrderStatusUpdateModel,
+                               db: AsyncSession = Depends(get_async_db),
                               Authorize: AuthJWT = Depends()):
     """
     ## Update Order Status
@@ -322,36 +319,29 @@ async def update_order_status(order_id: UUID,
     ### Response
     - Returns the updated order details.
     """
-    try:
-        Authorize.jwt_required()
-    except Exception as e:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, 
-                            detail="Invalid or expired token")
-    
-    current_user = Authorize.get_jwt_subject()
-    user = db.query(User).with_entities(User.is_staff).filter(User.username == current_user).first()
-    
-    if not user.is_staff:
+    current_user = await require_jwt(Authorize)
+    user = await db.execute(select(User.is_staff).where(User.username == current_user))
+    is_staff = user.scalar_one_or_none()
+    # Check if the user is a staff member
+    if not is_staff:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, 
                             detail="You are not authorized to update order status")
     
-    order_to_update = db.query(Order).filter(Order.id == order_id).first()
+    result = await db.execute(select(Order).where(Order.id == order_id))
+    order_to_update = result.scalar_one_or_none()
     
     if not order_to_update:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, 
                             detail="Order not found")
     
-    order_to_update.order_status = order_status.order_status
+    order_to_update.order_status = updated_status.order_status
     order_to_update.time_created = datetime.now()
-    db.commit()
+    await db.commit()
+    await db.refresh(order_to_update)
     
     response = {
         "message": "Order status updated successfully",
         "order_id": order_to_update.id,
-        "pizza_size": order_to_update.pizza_size_code,
-        "quantity": order_to_update.quantity,
-        "flavour": order_to_update.flavour_code,
-        "total_cost": order_to_update.total,
         "order_status": order_to_update.order_status_code,
         "time_created": order_to_update.time_created.isoformat(),
     }
@@ -360,9 +350,11 @@ async def update_order_status(order_id: UUID,
 
 # Delete Order Route
 @order_router.delete("/order/delete/{order_id}/", 
-                     status_code=status.HTTP_204_NO_CONTENT,
-                     response_model=None)
-async def delete_order(order_id: UUID, db: Session_v2 = Depends(get_db),
+                     status_code=status.HTTP_204_NO_CONTENT
+                    #  response_model=OrderResponseModel
+                     )
+async def delete_order(order_id: UUID,
+                       db: AsyncSession = Depends(get_async_db),
                        Authorize: AuthJWT = Depends()):
     """
     ## Delete Order
@@ -374,23 +366,21 @@ async def delete_order(order_id: UUID, db: Session_v2 = Depends(get_db),
     ### Response
     - Returns a success message if the order is deleted successfully.
     """
-    try:
-        Authorize.jwt_required()
-    except Exception as e:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, 
-                            detail="Invalid or expired token")
+    current_user = await require_jwt(Authorize)
+    user = await db.execute(select(User.id).where(User.username == current_user))
+    user = user.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     
-    current_user = Authorize.get_jwt_subject()
-    user = db.query(User).with_entities(User.id).filter(User.username == current_user).first()
-    
-    order_to_delete = db.query(Order).filter(Order.id == order_id, Order.user_id == user.id).first()
-    
+    result = await db.execute(select(Order).where(Order.user_id == user,Order.id == order_id))
+    order_to_delete = result.scalar_one_or_none()
+        
     if not order_to_delete:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, 
                             detail="Order not found")
     
-    db.delete(order_to_delete)
-    db.commit()
+    await db.delete(order_to_delete)
+    await db.commit()
     response = {
         "message": "Order deleted successfully",
         "order_id": order_to_delete.id,
@@ -402,54 +392,4 @@ async def delete_order(order_id: UUID, db: Session_v2 = Depends(get_db),
         "time_created": order_to_delete.time_created.isoformat(),
     }
     return jsonable_encoder(response)
-
-# @order_router.delete("/order/delete/{order_id}/", 
-#                      status_code=status.HTTP_204_NO_CONTENT,
-#                      response_model=None)
-# async def delete_order(order_id: UUID, 
-#                        db: AsyncSession = Depends(get_db),
-#                        Authorize: AuthJWT = Depends()):
-#     try:
-#         await Authorize.jwt_required()  # Make sure this is awaitable
-#     except Exception:
-#         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, 
-#                             detail="Invalid or expired token")
-
-#     current_user = Authorize.get_jwt_subject()
-
-#     # Fetch user ID asynchronously
-#     result = await db.execute(
-#         select(User.id).where(User.username == current_user)
-#     )
-#     user = result.scalar_one_or_none()
-
-#     if not user:
-#         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, 
-#                             detail="User not found")
-
-#     # Fetch the order asynchronously
-#     result = await db.execute(
-#         select(Order).where(Order.id == order_id, Order.user_id == user)
-#     )
-#     order_to_delete = result.scalar_one_or_none()
-
-#     if not order_to_delete:
-#         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, 
-#                             detail="Order not found")
-
-#     # Delete the order
-#     await db.delete(order_to_delete)
-#     await db.commit()
-
-#     response = {
-#         "message": "Order deleted successfully",
-#         "order_id": order_to_delete.id,
-#         "pizza_size": order_to_delete.pizza_size_code,
-#         "quantity": order_to_delete.quantity,
-#         "flavour": order_to_delete.flavour_code,
-#         "total_cost": order_to_delete.total,
-#         "order_status": order_to_delete.order_status_code,
-#         "time_created": order_to_delete.time_created.isoformat(),
-#     }
-
-#     return jsonable_encoder(response)
+    # return "Order deleted successfully"  # Return success message without order details

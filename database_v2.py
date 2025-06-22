@@ -18,7 +18,3 @@ AsyncSessionLocal = sessionmaker(bind=engine, class_=AsyncSession, expire_on_com
 async def get_async_db():
     async with AsyncSessionLocal() as session:
         yield session
-
-get_async_db()
-
-print('successfully connected to pizzadeliverydb database with AsyncSession')

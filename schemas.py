@@ -4,6 +4,7 @@ from typing import Optional
 from uuid import UUID 
 from db_config.db_config import read_db_config
 from fastapi_jwt_auth import AuthJWT
+from typing import List
 
 db_param = read_db_config()
 
@@ -56,7 +57,7 @@ class SignUpModel(BaseModel):
                 "is_staff": False,
                 "is_active": True
             }
-            }
+        }
         
 class UserUpdateModel(BaseModel):
     """User Update Model
@@ -77,6 +78,7 @@ class UserUpdateModel(BaseModel):
     state: Optional[str] = None
     local_government: Optional[str] = None
     phone_number: Optional[str] = None
+    time_created:Optional[datetime]
 
     class Config:
         from_attributes = True
@@ -111,22 +113,26 @@ class UserResponseModel(BaseModel):
     It includes fields for all necessary user information and provides an example for reference.
     The `Config` class includes settings for ORM compatibility and JSON schema generation.  
     """
-    id: UUID
-    username: str
-    email: str
+    # user_id: UUID
+    username: Optional[str]
+    email: Optional[str]
     first_name: Optional[str]
     last_name: Optional[str]
     address: Optional[str]
     state: Optional[str]
     local_government: Optional[str]
     phone_number: Optional[str]
-    time_created: datetime
-    is_staff: bool
-    is_active: bool
+    time_created: Optional[datetime]
+    is_staff: Optional[bool]
+    is_active: Optional[bool]
 
     class Config:
         from_attributes = True  # For ORM compatibility (Pydantic v2+)
         orm_mode = True  
+
+class UserListResponseModel(BaseModel):
+    message: str
+    users: List[UserResponseModel]
 
 class Settings(BaseModel):
     """Settings Model
@@ -227,7 +233,9 @@ class OrderStatusUpdateModel(BaseModel):
     It includes a field for the new order status and provides an example for reference.
     The `Config` class includes settings for ORM compatibility and JSON schema generation.  
     """
+    order_id: Optional[UUID]
     order_status: Optional[str] = "PENDING"
+    time_created: Optional[datetime] = datetime.now()
 
     class Config:
         from_attributes = True
@@ -255,20 +263,21 @@ class OrderResponseModel(BaseModel):
     It includes fields for all necessary order information and provides an example for reference.
     The `Config` class includes settings for ORM compatibility and JSON schema generation.
     """
-    message: Optional[str] 
     order_id: Optional[UUID]
     pizza_size: Optional[str]
     quantity: Optional[int]
     order_status: Optional[str]
     flavour: Optional[str]
     total_cost: Optional[float] = 0.0
-    order_status: Optional[str]
     time_created: datetime
 
     class Config:
         from_attributes = True  # For ORM compatibility (Pydantic v2+)
         orm_mode = True 
 
+class OrderListResponseModel(BaseModel):
+    message: str
+    orders: List[OrderResponseModel]
 # class TokenResponseModel(BaseModel):
 #     access_token: str
 #     refresh_token: str

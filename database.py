@@ -1,19 +1,22 @@
-from sqlalchemy import create_engine
+# database.py
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from sqlalchemy.orm import sessionmaker
+from db_config.db_config import read_db_config
 from sqlalchemy.orm import sessionmaker,declarative_base
-from database_connection import connect_to_db
-from src import logger
-
-engine = connect_to_db.connect('pizzadeliverydb')[1]
 
 Base=declarative_base()
+db_config = read_db_config()
 
-# Session=sessionmaker()
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+host = db_config['webapp_host']
+user = db_config['webapp_username']
+password = db_config['webapp_password']
+port = db_config['webapp_port']
 
-# if connect_to_db.connect('pizzadeliverydb'):
-#     logger.info(f"Connected to the pizzadeliverydb database successfully.")
-# else:
-#     logger.error("Failed to connect to the database.")
-#     raise Exception("Database connection failed.")
+DATABASE_URL = f"postgresql+asyncpg://{user}:{password}@localhost/pizzadeliverydb"
 
-# # engine=create_engine('postgresql://lamisplus:FmALa9PYGQUfyjq@localhost:5432/postgres', echo=True)
+engine = create_async_engine(DATABASE_URL, echo=True)
+AsyncSessionLocal = sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
+
+async def get_async_db():
+    async with AsyncSessionLocal() as session:
+        yield session

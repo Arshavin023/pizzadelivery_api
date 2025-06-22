@@ -1,13 +1,15 @@
 from fastapi import APIRouter, status, Depends
 from sqlalchemy import exists
-from database import engine, SessionLocal #, Session
 from sqlalchemy.orm import Session as Session_v2
 from schemas import SignUpModel,UserResponseModel,LoginModel
-from models import User, Order
+from models import User
+from sqlalchemy.ext.asyncio import AsyncSession
+from database import get_async_db  # <-- updated import
 from fastapi.exceptions import HTTPException
 from werkzeug.security import generate_password_hash, check_password_hash
 from fastapi_jwt_auth import AuthJWT
 from fastapi.encoders import jsonable_encoder
+from sqlalchemy.future import select
 
 auth_router = APIRouter(
     prefix="/auth",
@@ -16,13 +18,23 @@ auth_router = APIRouter(
 
 # session = Session(bind=engine)
 
-def get_db():
-    db = SessionLocal()
+# def get_db():
+#     db = SessionLocal()
+#     try:
+#         yield db
+#     finally:
+#         db.close()
+
+async def require_jwt(Authorize: AuthJWT = Depends()):
     try:
-        yield db
-    finally:
-        db.close()
-        
+        Authorize.jwt_required()
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token"
+        )
+    return Authorize.get_jwt_subject()
+
 # HomePage Route
 @auth_router.get("/")
 async def hello(Authorize: AuthJWT = Depends()):
@@ -33,17 +45,15 @@ async def hello(Authorize: AuthJWT = Depends()):
         ### JWT Authentication Required
         - The JWT token must be included in the request header as `Authorization    Bearer <token>`.      
     """
-    try:
-        Authorize.jwt_required()
-    except Exception as e:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, 
-                            detail="Invalid or expired token")
+    await require_jwt(Authorize)
+    
     return {"message": "Hello World"}
 
 # SignUp Route
 @auth_router.post("/signup",response_model=UserResponseModel, 
                   status_code=status.HTTP_201_CREATED)
-async def signup(user: SignUpModel,db: Session_v2 = Depends(get_db)):
+async def signup(user: SignUpModel,
+                 db: AsyncSession = Depends(get_async_db)):
     """
     ## User Registration
     This route allows a new user to register by providing their details.
@@ -64,10 +74,22 @@ async def signup(user: SignUpModel,db: Session_v2 = Depends(get_db)):
     ### JWT Authentication Required
     - The JWT token must be included in the request header as `Authorization Bearer <token>`.
     """
-    if db.query(exists().where(User.username == user.username)).scalar():
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Username already exists")
-    if db.query(exists().where(User.email == user.email)).scalar():
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already exists")
+    result = await db.execute(select(User.username).where(User.username == user.username))
+    db_username = result.scalar_one_or_none()
+    if db_username:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, 
+            detail="Username already exists"
+        )
+
+    # Check if email already exists
+    result = await db.execute(select(User).where(User.email == user.email))
+    db_email = result.scalar_one_or_none()
+    if db_email:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, 
+            detail="Email already exists"
+        )
     
     new_user = User(
         username=user.username,
@@ -83,12 +105,15 @@ async def signup(user: SignUpModel,db: Session_v2 = Depends(get_db)):
         is_active=user.is_active
     )
     db.add(new_user)
-    db.commit()
+    await db.commit()
+    await db.refresh(new_user)
+    
     return UserResponseModel.from_orm(new_user)
     
 # Login Route
 @auth_router.post("/login")
-async def login(user: LoginModel, db: Session_v2 = Depends(get_db), 
+async def login(user: LoginModel, 
+                db: AsyncSession = Depends(get_async_db), 
                 Authorize: AuthJWT = Depends()):
     """
     ## User Login
@@ -101,7 +126,13 @@ async def login(user: LoginModel, db: Session_v2 = Depends(get_db),
     ### JWT Authentication Required
     - The JWT token must be included in the request header as `Authorization Bearer <token>`.
     """
-    db_user = db.query(User).with_entities(User.username, User.password).filter_by(username=user.username).first()
+    
+    result = await db.execute(select(User.username, User.password).where(User.username==user.username))
+    db_user = result.first()
+
+    # db_user = db.query(User).with_entities(User.username, User.password
+    #                                        ).filter_by(username=user.username).first()
+    
     if not db_user or not check_password_hash(db_user.password, user.password):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, 
                             detail="Invalid username or password")
