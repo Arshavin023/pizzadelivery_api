@@ -161,17 +161,17 @@ git clone https://github.com/Arshavin023/pizzadelivery_api.git
 cd pizzadelivery_api
 ```
 
-### 2. VirtualEnv <a name="create and activate virtual environment"></a>
+### 2. Create and Activate Virtual Environment <a name="create and activate virtual environment"></a>
 ```bash
-python3 -m venv pizzadelivery_venv
+python3 -m venv pizzadelivery_venv && source pizzadelivery_venv/bin/activate
 ```
 
-### 3. Requirements <a name="Install the required Python packages"></a>
+### 3. Install Python Packages <a name="Install the required Python packages"></a>
 ```bash
 pip install -r requirements.txt
 ```
 
-### 4. Testing <a name="Run App to Test Endpoints"></a>
+### 4. Run App For Testing <a name="Run App to Test Endpoints"></a>
 ```bash
 uvicorn main:app --reload
 ```
