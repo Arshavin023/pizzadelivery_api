@@ -137,8 +137,49 @@ This repository contains a robust and scalable RESTful API for an eCommerce plat
 ---
 
 ## 📖 Getting Started
+## Installation <a name="installation"></a>
+#### Prerequisites <a name="prerequisites"></a>
+Before running the File Ingestion Process, ensure you have the following prerequisites installed:
+- Python 3.x
+- PostgreSQL database
 
-### 1. Clone the Repo
+## Configuration <a name="configuration"></a>
+Create database_credentials file and fill in the info
+```bash
+nano /home/ubuntu/database_credentials/config.ini
+[database]
+webapphost=localhost
+webappport=5432
+webappusername=database_username
+webapppassword=database_password
+webappdatabase_name=database_name
+```
+
+### 1. Clone the Repo <a name="Clone the Repo"></a>
 ```bash
 git clone https://github.com/Arshavin023/pizzadelivery_api.git
 cd pizzadelivery_api
+```
+
+### 2. VirtualEnv <a name="create and activate virtual environment"></a>
+```bash
+python3 -m venv pizzadelivery_venv
+```
+
+### 3. Requirements <a name="Install the required Python packages"></a>
+```bash
+pip install -r requirements.txt
+```
+
+### 4. Testing <a name="Run App to Test Endpoints"></a>
+```bash
+uvicorn main:app --reload
+```
+
+## Deployment <a name="deployment"></a>
+
+## License <a name="license"></a>
+- MIT License
+
+## Authors & Acknowledgements <a name="authors_and_acknowledgments"></a>
+- Uche Nnodim
