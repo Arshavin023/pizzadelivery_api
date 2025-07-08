@@ -60,9 +60,7 @@ This repository contains a robust and scalable RESTful API for an eCommerce plat
 |----------|--------|-------------|
 | `/profile` | GET | Get User Profile |
 | `/profile` | PUT | Update User Profile |
-| `/address` | POST | Add Address |
-| `/address` | GET | List Addresses |
-| `/address/{id}` | DELETE | Remove Address |
+| `/profiles` | GET | Get All Users |
 
 ---
 
