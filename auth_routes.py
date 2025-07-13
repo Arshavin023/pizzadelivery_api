@@ -1,29 +1,31 @@
 from fastapi import APIRouter, status, Depends
 from sqlalchemy import exists
+from datetime import timedelta
 from sqlalchemy.orm import Session as Session_v2
 from schemas import SignUpModel,UserResponseModel,LoginModel
 from models import User
 from sqlalchemy.ext.asyncio import AsyncSession
-from database import get_async_db  # <-- updated import
+from database_connection.database import get_async_db  # <-- updated import
 from fastapi.exceptions import HTTPException
 from werkzeug.security import generate_password_hash, check_password_hash
 from fastapi_jwt_auth import AuthJWT
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy.future import select
+from email_validator import validate_email, EmailNotValidError
+import re
+from zxcvbn import zxcvbn
+
+# Add this phone validation pattern
+PHONE_REGEX = re.compile(r'^\+?[1-9]\d{1,14}$')  # E.164 format
+
+def is_password_strong(password):
+    result = zxcvbn(password)
+    return result['score'] >= 3  # Require minimum strength score
 
 auth_router = APIRouter(
     prefix="/auth",
     tags=["auth"]
 )
-
-# session = Session(bind=engine)
-
-# def get_db():
-#     db = SessionLocal()
-#     try:
-#         yield db
-#     finally:
-#         db.close()
 
 async def require_jwt(Authorize: AuthJWT = Depends()):
     try:
@@ -74,18 +76,42 @@ async def signup(user: SignUpModel,
     ### JWT Authentication Required
     - The JWT token must be included in the request header as `Authorization Bearer <token>`.
     """
-    result = await db.execute(select(User.username).where(User.username == user.username))
-    db_username = result.scalar_one_or_none()
-    if db_username:
+    # Email validation
+    try:
+        valid = validate_email(user.email)
+        user.email = valid.email  # Normalized email
+    except EmailNotValidError as e:
+        raise HTTPException(
+            status_code=400,
+            detail=str(e)
+        )
+
+    # Password validation
+    if not is_password_strong(user.password):
+        raise HTTPException(
+            status_code=400,
+            detail="Password is too weak. It must be at least 8 characters long, "
+                   "contain a mix of letters, numbers, and symbols, "
+                    "and have a strength score of at least 3."
+        )
+    
+    # Phone validation
+    if user.phone_number and "+" not in user.phone_number:
+        raise HTTPException(
+            status_code=400,
+            detail="Phone number must be in international format (e.g., +1234567890)"
+        )
+    
+    existing_username = await db.execute(select(User.username).where(User.username == user.username))
+    if existing_username.scalar_one_or_none():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, 
             detail="Username already exists"
         )
 
     # Check if email already exists
-    result = await db.execute(select(User).where(User.email == user.email))
-    db_email = result.scalar_one_or_none()
-    if db_email:
+    existing_email = await db.execute(select(User).where(User.email == user.email))
+    if existing_email.scalar_one_or_none():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, 
             detail="Email already exists"
@@ -127,18 +153,21 @@ async def login(user: LoginModel,
     - The JWT token must be included in the request header as `Authorization Bearer <token>`.
     """
     
-    result = await db.execute(select(User.username, User.password).where(User.username==user.username))
+    result = await db.execute(select(User.username, User.password, 
+                                     User.is_staff).where(User.username==user.username))
     db_user = result.first()
-
-    # db_user = db.query(User).with_entities(User.username, User.password
-    #                                        ).filter_by(username=user.username).first()
     
     if not db_user or not check_password_hash(db_user.password, user.password):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, 
                             detail="Invalid username or password")
     
-    access_token = Authorize.create_access_token(subject=db_user.username)
-    refresh_token = Authorize.create_refresh_token(subject=db_user.username)
+    access_token = Authorize.create_access_token(
+        subject=db_user.username,
+        expires_time=timedelta(minutes=15),
+        user_claims={"is_staff": db_user.is_staff}
+        )
+    refresh_token = Authorize.create_refresh_token(subject=db_user.username,
+                                                   expires_time=timedelta(days=7))
     response = {
         "access": access_token,
         "refresh": refresh_token,

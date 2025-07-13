@@ -2,12 +2,16 @@ from fastapi import APIRouter, status, Depends
 from fastapi_jwt_auth import AuthJWT
 from models import User
 from schemas import UserResponseModel, UserUpdateModel, UserListResponseModel
-from database import get_async_db  # <-- updated import
+from database_connection.database import get_async_db  # <-- updated import
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi.exceptions import HTTPException
 from fastapi.encoders import jsonable_encoder
 from datetime import datetime
 from sqlalchemy.future import select
+import re 
+
+# Add this phone validation pattern
+PHONE_REGEX = re.compile(r'^\+?[1-9]\d{1,14}$')  # E.164 format
 
 userinfo_router = APIRouter(
     prefix="/users",
@@ -143,6 +147,13 @@ async def update_user_info(user_update: UserUpdateModel, Authorize: AuthJWT = De
     ### Response
     - Returns a message indicating successful update along with the updated user information.
     """
+     # Phone validation
+    if user_update.phone_number and "+" not in user_update.phone_number:
+        raise HTTPException(
+            status_code=400,
+            detail="Phone number must be in international format (e.g., +1234567890)"
+        )
+    
     current_user = await require_jwt(Authorize)
     result = await db.execute(select(User).where(User.username == current_user))
     user_to_update = result.scalar_one_or_none()

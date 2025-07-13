@@ -2,7 +2,7 @@ from fastapi import APIRouter, status, Depends
 from fastapi_jwt_auth import AuthJWT
 from models import User, Order
 from schemas import OrderModel,OrderResponseModel,OrderStatusUpdateModel,OrderListResponseModel
-from database import get_async_db  # <-- updated import
+from database_connection.database import get_async_db  # <-- updated import
 from fastapi.exceptions import HTTPException
 from fastapi.encoders import jsonable_encoder
 from datetime import datetime
