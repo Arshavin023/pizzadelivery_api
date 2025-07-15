@@ -2,7 +2,8 @@ import inspect, re
 from fastapi import FastAPI
 from auth_routes import auth_router
 from order_routes import order_router
-from users_routes import userinfo_router
+from users_routes import user_router
+from products_routes import product_router, category_router, product_variant_router
 from fastapi_jwt_auth import AuthJWT
 from schemas import Settings
 from fastapi.routing import APIRoute
@@ -63,6 +64,10 @@ def get_config():
     return Settings()
 
 app.include_router(auth_router)
-app.include_router(userinfo_router)
+app.include_router(user_router)
+app.include_router(category_router)
+app.include_router(product_router)
+app.include_router(product_variant_router)
 app.include_router(order_router)
+
 

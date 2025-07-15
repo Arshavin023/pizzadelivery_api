@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from datetime import datetime
 from typing import Optional
 from uuid import UUID 
@@ -52,11 +52,30 @@ class SignUpModel(BaseModel):
         }
 
 class AddressType(str, Enum):
+    """AddressType
+    This model is used for validating address_type in the AddressUpdateModel 
+    and AddressResponseModel
+    """
     HOME = "HOME"
     WORK = "WORK"
     OTHER = "OTHER"
 
 class AddressUpdateModel(BaseModel):
+    """User Address Update Model
+    This model is used for updating user address information, 
+    capturing all necessary fields that can be modified.
+    Attributes:
+        address_type: Home, Work, or Other
+        street_address1 (str): Primary street address of the user.
+        street_address2 (Optional[str]): Secondary street address of the user (optional).
+        postal_code (Optional[str]): Postal code of the user's address.
+        city (Optional[str]): City of the user's address.
+        state (Optional[str]): State of the user's address.
+        country (Optional[str]): Country of the user's address.
+        is_default (bool): Indicates if this address is the default address for the user.
+    This model is used to update existing user information in the system.
+    It includes fields for all necessary user information and provides an example for reference.
+    The `Config` class includes settings for JSON schema generation and example data."""
     address_type: AddressType = AddressType.HOME
     recipient_name: Optional[str] = None
     street_address1: str
@@ -89,15 +108,7 @@ class UserUpdateModel(BaseModel):
     Attributes:
         first_name (Optional[str]): User's first name.
         last_name (Optional[str]): User's last name.
-        address_type: Home, Work, or Other
-        street_address1 (str): Primary street address of the user.
-        street_address2 (Optional[str]): Secondary street address of the user (optional).
-        postal_code (Optional[str]): Postal code of the user's address.
-        city (Optional[str]): City of the user's address.
-        state (Optional[str]): State of the user's address.
-        country (Optional[str]): Country of the user's address.
         phone_number (Optional[str]): User's phone number.
-        updated_at (datetime): Last Timestamp when the user was updated.
         is_staff (bool): Indicates if the user is a staff member.
         is_active (bool): Indicates if the user account is active.
     This model is used to update existing user information in the system.
@@ -106,7 +117,7 @@ class UserUpdateModel(BaseModel):
     first_name: Optional[str] = None
     last_name: Optional[str] = None
     phone_number: Optional[str] = None
-    addresses: Optional[List[AddressUpdateModel]] = None
+    # addresses: Optional[List[AddressUpdateModel]] = None
 
     class Config:
         from_attributes = True
@@ -142,8 +153,6 @@ class UserResponseModel(BaseModel):
     It includes fields for all necessary user information and provides an example for reference.
     The `Config` class includes settings for ORM compatibility and JSON schema generation.  
     """
-    # user_id: UUID
-    # id: Optional[UUID]
     username: Optional[str]
     email: Optional[str]
     first_name: Optional[str]
@@ -161,6 +170,85 @@ class UserResponseModel(BaseModel):
 class UserListResponseModel(BaseModel):
     message: str
     users: List[UserResponseModel]
+
+class CategoryBase(BaseModel):
+    name: str = Field(..., max_length=50)
+    description: Optional[str] = None
+    parent_id: Optional[UUID] = None  # Optional parent category for subcategories
+
+class CategoryCreate(CategoryBase):
+    pass
+
+class CategoryUpdate(CategoryBase):
+    name: Optional[str] = Field(None, max_length=50) # Make name optional for updates
+    description: Optional[str] = None
+    parent_id: Optional[UUID] = None
+
+class CategoryResponse(CategoryBase):
+    name: str = Field(..., max_length=50)
+    description: Optional[str] = None
+    updated_at: datetime
+
+    class Config:
+        orm_mode = True # Enable ORM mode for automatic mapping from SQLAlchemy models
+
+# Product Models
+class ProductBase(BaseModel):
+    name: str = Field(..., max_length=100)
+    description: Optional[str] = None
+    base_price: float = Field(..., ge=0) # Using float for Pydantic, will be Numeric in DB
+    category_id: UUID
+    is_active: bool = True
+    image_url: Optional[str] = Field(None, max_length=255)
+
+class ProductCreate(ProductBase):
+    pass
+
+class ProductUpdate(ProductBase):
+    name: Optional[str] = Field(None, max_length=100)
+    description: Optional[str] = None
+    base_price: Optional[float] = Field(None, ge=0)
+    category_id: Optional[UUID] = None
+    is_active: Optional[bool] = None
+    image_url: Optional[str] = Field(None, max_length=255)
+
+class ProductResponse(ProductBase):
+    # id: UUID
+    name: Optional[str] = Field(None, max_length=100)
+    description: Optional[str] = None
+    base_price: Optional[float] = Field(None, ge=0)
+    category: Optional[CategoryResponse] = None # Include category details in response
+    is_active: Optional[bool] = None
+    image_url: Optional[str] = Field(None, max_length=255)
+    updated_at: datetime
+
+    class Config:
+        orm_mode = True
+
+# Product Variant Models
+class ProductVariantBase(BaseModel):
+    product_id: UUID
+    name: str = Field(..., max_length=50)
+    price_modifier: float = Field(0.00, ge=0)
+    sku: str = Field(..., max_length=50)
+
+class ProductVariantCreate(ProductVariantBase):
+    pass
+
+class ProductVariantUpdate(ProductVariantBase):
+    product_id: Optional[UUID] = None
+    name: Optional[str] = Field(None, max_length=50)
+    price_modifier: Optional[float] = Field(None, ge=0)
+    sku: Optional[str] = Field(None, max_length=50)
+
+class ProductVariantResponse(ProductVariantBase):
+    id: UUID
+    created_at: datetime
+    updated_at: datetime
+    product: Optional[ProductResponse] = None # Include product details in response
+
+    class Config:
+        orm_mode = True
 
 class Settings(BaseModel):
     """Settings Model

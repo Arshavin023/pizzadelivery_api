@@ -159,9 +159,9 @@ class Product(Base):
     __tablename__ = 'products'
     
     id = Column(PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    name = Column(String(100), nullable=False)
+    name = Column(String(100), nullable=True)
     description = Column(Text)
-    base_price = Column(Numeric(10, 2), nullable=False)
+    base_price = Column(Numeric(10, 2), nullable=True)
     category_id = Column(PG_UUID(as_uuid=True), ForeignKey('categories.id'))
     is_active = Column(Boolean, default=True)
     image_url = Column(String(255))
@@ -180,7 +180,9 @@ class ProductVariant(Base):
     name = Column(String(50))  # e.g., "Small", "Medium", "Large"
     price_modifier = Column(Numeric(10, 2), default=0.00)  # Additional price for this variant
     sku = Column(String(50), unique=True)
-    
+    created_at = Column(DateTime, default=func.now()) # Added for consistency
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now()) # Added for consistency
+
     product = relationship('Product', back_populates='variants')
 
 class Category(Base):
@@ -190,9 +192,12 @@ class Category(Base):
     name = Column(String(50), nullable=False, unique=True)
     description = Column(Text)
     parent_id = Column(PG_UUID(as_uuid=True), ForeignKey('categories.id'))
-    
+    created_at = Column(DateTime, default=func.now()) # Added for consistency
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now()) # Added for consistency
+
     products = relationship('Product', back_populates='category')
-    children = relationship('Category')
+    children = relationship('Category', remote_side=[id]) # Corrected remote_side for self-referencing
+
 
 class OrderItem(Base):
     __tablename__ = 'order_items'

@@ -53,7 +53,7 @@ async def hello(Authorize: AuthJWT = Depends()):
     return {"message": "Hello World"}
 
 # SignUp Route
-@auth_router.post("/signup",response_model=None, 
+@auth_router.post("/register",response_model=None, 
                   status_code=status.HTTP_201_CREATED)
 async def signup(user: SignUpModel,
                  db: AsyncSession = Depends(get_async_db)):

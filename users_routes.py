@@ -23,10 +23,7 @@ import re
 # Add this phone validation pattern
 PHONE_REGEX = re.compile(r'^\+?[1-9]\d{1,14}$')  # E.164 format
 
-userinfo_router = APIRouter(
-    prefix="/users",
-    tags=["users"]
-)
+user_router = APIRouter(prefix="/users", tags=["Users"])
 
 async def require_jwt(Authorize: AuthJWT = Depends()):
     try:
@@ -54,7 +51,7 @@ async def require_jwt(Authorize: AuthJWT = Depends()):
     
     return Authorize.get_jwt_subject()
 
-@userinfo_router.get("/")
+@user_router.get("/")
 async def hello(Authorize: AuthJWT = Depends()):
     """
     ## A sample route to test JWT authentication.
@@ -67,7 +64,7 @@ async def hello(Authorize: AuthJWT = Depends()):
     return {"message": "Hello World"}
 
 # Get User Info Route
-@userinfo_router.get("/info", response_model=UserResponseModel, 
+@user_router.get("/profile", response_model=UserResponseModel, 
                      status_code=status.HTTP_200_OK)
 async def get_user_info(Authorize: AuthJWT = Depends(), 
                         db: AsyncSession = Depends(get_async_db)
@@ -129,7 +126,7 @@ async def get_user_info(Authorize: AuthJWT = Depends(),
     return jsonable_encoder(response)
 
 # Get All Users Route SuperAdmin    
-@userinfo_router.get("/users/", response_model=UserListResponseModel, 
+@user_router.get("/profiles/", response_model=UserListResponseModel, 
                      status_code=status.HTTP_200_OK)
 async def get_all_users(Authorize: AuthJWT = Depends(), 
                         db: AsyncSession = Depends(get_async_db)
@@ -212,7 +209,7 @@ async def get_all_users(Authorize: AuthJWT = Depends(),
 
 
 # Update User Info Route
-@userinfo_router.put("/update", response_model=UserResponseModel, 
+@user_router.put("/update/user", response_model=UserResponseModel, 
                      status_code=status.HTTP_200_OK)
 async def update_user_info(user_update: UserUpdateModel, Authorize: AuthJWT = Depends(), 
                            db: AsyncSession = Depends(get_async_db)):
@@ -235,34 +232,37 @@ async def update_user_info(user_update: UserUpdateModel, Authorize: AuthJWT = De
     
     # Get user with addresses eager loaded
     current_user = await require_jwt(Authorize)
-    result = await db.execute(
-        select(User)
-        .options(selectinload(User.addresses))
-        .where(User.username == current_user)
-    )
-    user = result.scalar_one_or_none()
-    
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
 
-    # Update basic user fields
-    update_data = user_update.dict(exclude_unset=True)
-    for field in ['first_name', 'last_name', 'phone_number']:
-        if field in update_data:
-            setattr(user, field, update_data[field])
+    async with db.begin():
 
-    # user.updated_at = datetime.now()  # Update timestamp
-    
-    await db.commit()
-    
-    # Refresh with relationships
-    await db.refresh(user)
-    result = await db.execute(
-        select(User)
-        .options(selectinload(User.addresses))
-        .where(User.id == user.id)
-    )
-    updated_user = result.scalar_one()
+        result = await db.execute(
+            select(User)
+            .options(selectinload(User.addresses))
+            .where(User.username == current_user)
+        )
+        user = result.scalar_one_or_none()
+        
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        # Update basic user fields
+        update_data = user_update.dict(exclude_unset=True)
+        for field in ['first_name', 'last_name', 'phone_number']:
+            if field in update_data:
+                setattr(user, field, update_data[field])
+
+        # user.updated_at = datetime.now()  # Update timestamp
+        
+        await db.commit()
+        
+        # Refresh with relationships
+        await db.refresh(user)
+        result = await db.execute(
+            select(User)
+            .options(selectinload(User.addresses))
+            .where(User.id == user.id)
+        )
+        updated_user = result.scalar_one()
 
     # Prepare response
     default_address = next((a for a in updated_user.addresses if a.is_default), None)
@@ -303,13 +303,13 @@ async def update_user_info(user_update: UserUpdateModel, Authorize: AuthJWT = De
     return jsonable_encoder(response)
 
 # Update User Address Info Route
-@userinfo_router.put("/update/address", response_model=AddressResponseModel, 
+@user_router.put("/update/address", response_model=AddressResponseModel, 
                      status_code=status.HTTP_200_OK)
 async def update_user_address(address_update: AddressUpdateModel, Authorize: AuthJWT = Depends(), 
                            db: AsyncSession = Depends(get_async_db)):
     """
-    ## Update User Information
-    This route allows the currently authenticated user to update their information.
+    ## User Address Information
+    This route allows the currently authenticated user to update their address information.
     ### JWT Authentication Required
     - The JWT token must be included in the request header as `Authorization Bearer <token>`.
     ### Request Body
