@@ -36,35 +36,25 @@ This repository contains a robust and scalable RESTful API for an eCommerce plat
 |----------|--------|-------------|
 | `/register` | POST | User Registration |
 | `/login` | POST | User Login |
-| `/refresh-token` | POST | Refresh JWT Token |
+| `/refresh` | POST | Refresh JWT Token |
 | `/logout` | POST | User Logout |
 | `/roles` | GET | Get Roles (Admin) |
 | `/assign-role` | POST | Assign Role to User (Admin) |
 
 ---
 
-### 2. 📦 Order Management
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/orders` | POST | Place New Order |
-| `/orders/{id}` | GET | Get Order Details |
-| `/orders` | GET | List User Orders |
-| `/orders/{id}/status` | PUT | Update Order Status (Admin) |
-
----
-
-### 3. 👤 User Profile & Address
+### 2. 👤 User Profile & Address
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/profile` | GET | Get User Profile |
-| `/profile` | PUT | Update User Profile |
-| `/profiles` | GET | Get All Users |
+| `/profiles` | GET | Get All User Profiles|
+| `/update/user` | PUT | Update User Information |
+| `/update/address` | PUT | Update User Address  |
 
 ---
 
-### 4. 🛍️ Product Management
+### 3. 🛍️ Product Management
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
@@ -73,6 +63,18 @@ This repository contains a robust and scalable RESTful API for an eCommerce plat
 | `/products` | POST | Create Product (Admin) |
 | `/products/{id}` | PUT | Update Product (Admin) |
 | `/products/{id}` | DELETE | Delete Product (Admin) |
+| `/categories` |  POST  |  Create Category (Admin)  |
+
+---
+
+### 4. 📦 Order Management
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/orders` | POST | Place New Order |
+| `/orders/{id}` | GET | Get Order Details |
+| `/orders` | GET | List User Orders |
+| `/orders/{id}/status` | PUT | Update Order Status (Admin) |
 
 ---
 
