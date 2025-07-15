@@ -12,48 +12,30 @@ from sqlalchemy import func, JSON
 class User(Base):
     __tablename__ = 'users'
     id = Column(PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    username = Column(String(50), unique=False, nullable=False)
+    username = Column(String(50), unique=True, nullable=False)
     email = Column(String(100), unique=True, nullable=False)
     password = Column(Text, nullable=True)
     first_name = Column(String(50), nullable=True)
     last_name = Column(String(50), nullable=True)
-    address = Column(String(255), nullable=True)
-    state = Column(String(50), nullable=True)
-    local_government = Column(String(50), nullable=True)
     phone_number = Column(String(15), nullable=True)
-    time_created = Column(DateTime, default=func.now())
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
     is_staff = Column(Boolean, default=False)
     is_active = Column(Boolean, default=False)
 
-    # Relationship to Order
+    # Relationship to Order, Address, Review
     orders = relationship('Order', back_populates='user')
     addresses = relationship('Address', back_populates='user', cascade='all, delete-orphan')
     reviews = relationship('Review', back_populates='user', cascade='all, delete-orphan')
 
     def __repr__(self):
         return f"<User(id={self.id}, username={self.username}, email={self.email})>"
-    
-    # # Add this inside the User class (usually near the bottom)
-    # @validates('email')
-    # def validate_email(self, key, email):
-    #     """Ensure email contains an @ symbol and basic formatting"""
-    #     if email is None:
-    #         raise ValueError("Email cannot be null")
-    #     if '@' not in email or '.' not in email.split('@')[-1]:
-    #         raise ValueError("Invalid email address format")
-    #     return email.lower().strip()  # Normalize email
-    
-    # # Other validations can be added for different fields
-    # @validates('phone_number')
-    # def validate_phone(self, key, phone):
-    #     """Basic phone number validation"""
-    #     if phone and not phone.startswith('+'):
-    #         raise ValueError("Phone number must include country code")
-    #     return phone
 
 class Address(Base):
     __tablename__ = 'addresses'
-    
+    __table_args__ = {
+        'postgresql_partition_by': 'LIST (country)'
+    }
     ADDRESS_TYPES = (
         ('HOME', 'home'),
         ('WORK', 'work'),
@@ -62,15 +44,15 @@ class Address(Base):
     
     id = Column(PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id = Column(PG_UUID(as_uuid=True), ForeignKey('users.id'), nullable=False)
-    address_type = Column(String(20), default='HOME')  # Could use ChoiceType if preferred
-    recipient_name = Column(String(100), nullable=False)
-    street_address1 = Column(String(255), nullable=False)
+    address_type = Column(ChoiceType(choices=ADDRESS_TYPES), default='HOME')  # Could use ChoiceType if preferred
+    recipient_name = Column(String(100), nullable=True)
+    street_address1 = Column(String(255), nullable=True)
     street_address2 = Column(String(255))
-    city = Column(String(100), nullable=False)
-    state = Column(String(100), nullable=False)
-    postal_code = Column(String(20), nullable=False)
-    country = Column(String(100), nullable=False, default='United States')
-    phone_number = Column(String(20))
+    city = Column(String(100), nullable=True)
+    state = Column(String(100), nullable=True)
+    postal_code = Column(String(20), nullable=True)
+    country = Column(String(100), nullable=True)
+    full_address = Column(Text, nullable=True)  # Optional, can be computed
     is_default = Column(Boolean, default=False)
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
@@ -85,13 +67,13 @@ class Address(Base):
     @property
     def full_address(self):
         lines = [
-            self.recipient_name,
-            self.street_address1,
+            self.recipient_name, 
+            self.street_address1,',',
             self.street_address2,
-            f"{self.city}, {self.state} {self.postal_code}",
+            f"{self.postal_code}, {self.city}, {self.state} state,",
             self.country
         ]
-        return '\n'.join(filter(None, lines))
+        return ' '.join(filter(None, lines))
 # class Order(Base):
 #     PIZZA_FLAVOURS = (
 #     ('MARGHERITA', 'Margherita'),

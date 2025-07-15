@@ -1,9 +1,9 @@
 from fastapi import APIRouter, status, Depends
 from sqlalchemy import exists
-from datetime import timedelta
+from datetime import timedelta, datetime
 from sqlalchemy.orm import Session as Session_v2
 from schemas import SignUpModel,UserResponseModel,LoginModel
-from models import User
+from models import User, Address
 from sqlalchemy.ext.asyncio import AsyncSession
 from database_connection.database import get_async_db  # <-- updated import
 from fastapi.exceptions import HTTPException
@@ -11,6 +11,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from fastapi_jwt_auth import AuthJWT
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy.future import select
+from sqlalchemy.orm import selectinload
 from email_validator import validate_email, EmailNotValidError
 import re
 from zxcvbn import zxcvbn
@@ -52,7 +53,7 @@ async def hello(Authorize: AuthJWT = Depends()):
     return {"message": "Hello World"}
 
 # SignUp Route
-@auth_router.post("/signup",response_model=UserResponseModel, 
+@auth_router.post("/signup",response_model=None, 
                   status_code=status.HTTP_201_CREATED)
 async def signup(user: SignUpModel,
                  db: AsyncSession = Depends(get_async_db)):
@@ -123,9 +124,6 @@ async def signup(user: SignUpModel,
         password=generate_password_hash(user.password),
         first_name=user.first_name,
         last_name=user.last_name,
-        address=user.address,
-        state=user.state,
-        local_government=user.local_government,
         phone_number=user.phone_number,
         is_staff=user.is_staff,
         is_active=user.is_active
@@ -133,8 +131,14 @@ async def signup(user: SignUpModel,
     db.add(new_user)
     await db.commit()
     await db.refresh(new_user)
+
+    new_address = Address(
+            user_id=new_user.id  # This populates the foreign key
+        )
+    db.add(new_address)
+    await db.commit()
     
-    return UserResponseModel.from_orm(new_user)
+    return jsonable_encoder({"message": "User created successfully"})
     
 # Login Route
 @auth_router.post("/login")

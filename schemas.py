@@ -5,6 +5,7 @@ from uuid import UUID
 from db_config.db_config import read_db_config
 from fastapi_jwt_auth import AuthJWT
 from typing import List
+from enum import Enum
 
 db_param = read_db_config()
 
@@ -18,9 +19,6 @@ class SignUpModel(BaseModel):
         password (str): User's password (should be hashed before storage).
         first_name (Optional[str]): User's first name.
         last_name (Optional[str]): User's last name.
-        address (Optional[str]): User's address.
-        state (Optional[str]): User's state of residence.
-        local_government (Optional[str]): User's local government area.
         phone_number (Optional[str]): User's phone number.
         is_staff (Optional[bool]): Indicates if the user is a staff member (default is False).
         is_active (Optional[bool]): Indicates if the user account is active (default is False).
@@ -34,9 +32,6 @@ class SignUpModel(BaseModel):
     password:str
     first_name:Optional[str]
     last_name:Optional[str] 
-    address:Optional[str]
-    state:Optional[str] 
-    local_government:Optional[str] 
     phone_number:Optional[str]
     is_staff:Optional[bool] = False
     is_active:Optional[bool] = False
@@ -50,35 +45,68 @@ class SignUpModel(BaseModel):
                 "password": "securepassword123",
                 "first_name": "John",
                 "last_name": "Doe",
-                "address": "2 Nwodo Street, Owerri Municipal",
-                "state": "Imo",
-                "local_government": "Owerri Municipal",
                 "phone_number": "08012345678",
                 "is_staff": False,
                 "is_active": True
             }
         }
-        
+
+class AddressType(str, Enum):
+    HOME = "HOME"
+    WORK = "WORK"
+    OTHER = "OTHER"
+
+class AddressUpdateModel(BaseModel):
+    address_type: AddressType = AddressType.HOME
+    recipient_name: Optional[str] = None
+    street_address1: str
+    street_address2: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    postal_code: Optional[str] = None
+    country: Optional[str] = None
+    is_default: bool
+
+class AddressResponseModel(BaseModel):
+    address_type: AddressType = AddressType.HOME
+    street_address1: Optional[str]
+    street_address2: Optional[str]
+    postal_code: Optional[str]
+    city: Optional[str]
+    state: Optional[str]
+    country: Optional[str]
+    full_address: Optional[str]
+    is_default: Optional[bool]
+    updated_at: Optional[datetime]
+
+    class Config:
+        from_attributes = True
+        orm_mode = True
+
 class UserUpdateModel(BaseModel):
     """User Update Model
     This model is used for updating user information, capturing all necessary fields that can be modified.
     Attributes:
         first_name (Optional[str]): User's first name.
         last_name (Optional[str]): User's last name.
-        address (Optional[str]): User's address.
-        state (Optional[str]): User's state of residence.
-        local_government (Optional[str]): User's local government area.
+        address_type: Home, Work, or Other
+        street_address1 (str): Primary street address of the user.
+        street_address2 (Optional[str]): Secondary street address of the user (optional).
+        postal_code (Optional[str]): Postal code of the user's address.
+        city (Optional[str]): City of the user's address.
+        state (Optional[str]): State of the user's address.
+        country (Optional[str]): Country of the user's address.
         phone_number (Optional[str]): User's phone number.
+        updated_at (datetime): Last Timestamp when the user was updated.
+        is_staff (bool): Indicates if the user is a staff member.
+        is_active (bool): Indicates if the user account is active.
     This model is used to update existing user information in the system.
     It includes fields for all necessary user information and provides an example for reference.
     The `Config` class includes settings for JSON schema generation and example data."""
     first_name: Optional[str] = None
     last_name: Optional[str] = None
-    address: Optional[str] = None
-    state: Optional[str] = None
-    local_government: Optional[str] = None
     phone_number: Optional[str] = None
-    time_created:Optional[datetime]
+    addresses: Optional[List[AddressUpdateModel]] = None
 
     class Config:
         from_attributes = True
@@ -86,10 +114,7 @@ class UserUpdateModel(BaseModel):
             "example": {
                 "first_name": "Jane",
                 "last_name": "Doe",
-                "address": "123 Main St, Springfield",
-                "state": "Illinois",
-                "local_government": "Springfield",
-                "phone_number": "123-456-7890"
+                "phone_number": "+2348012345678"
             }
         }
 
@@ -102,11 +127,15 @@ class UserResponseModel(BaseModel):
         email (str): User's email address.
         first_name (Optional[str]): User's first name.
         last_name (Optional[str]): User's last name.
-        address (Optional[str]): User's address.
-        state (Optional[str]): User's state of residence.
-        local_government (Optional[str]): User's local government area.
+        address_type: Home, Work, or Other
+        street_address1 (str): Primary street address of the user.
+        street_address2 (Optional[str]): Secondary street address of the user (optional).
+        postal_code (Optional[str]): Postal code of the user's address.
+        city (Optional[str]): City of the user's address.
+        state (Optional[str]): State of the user's address.
+        country (Optional[str]): Country of the user's address.
         phone_number (Optional[str]): User's phone number.
-        time_created (datetime): Timestamp when the user was created.
+        updated_at (datetime): Last Timestamp when the user was updated.
         is_staff (bool): Indicates if the user is a staff member.
         is_active (bool): Indicates if the user account is active.
     This model is used to return user information in API responses.
@@ -114,20 +143,19 @@ class UserResponseModel(BaseModel):
     The `Config` class includes settings for ORM compatibility and JSON schema generation.  
     """
     # user_id: UUID
+    # id: Optional[UUID]
     username: Optional[str]
     email: Optional[str]
     first_name: Optional[str]
     last_name: Optional[str]
-    address: Optional[str]
-    state: Optional[str]
-    local_government: Optional[str]
     phone_number: Optional[str]
-    time_created: Optional[datetime]
     is_staff: Optional[bool]
     is_active: Optional[bool]
+    full_address: Optional[str]  # from default address only
+    addresses: List[AddressResponseModel] = []
 
     class Config:
-        from_attributes = True  # For ORM compatibility (Pydantic v2+)
+        from_attributes = True
         orm_mode = True  
 
 class UserListResponseModel(BaseModel):

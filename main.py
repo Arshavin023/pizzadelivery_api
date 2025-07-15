@@ -2,7 +2,7 @@ import inspect, re
 from fastapi import FastAPI
 from auth_routes import auth_router
 from order_routes import order_router
-from userinfo_routes import userinfo_router
+from users_routes import userinfo_router
 from fastapi_jwt_auth import AuthJWT
 from schemas import Settings
 from fastapi.routing import APIRoute
