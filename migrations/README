@@ -1,0 +1,4 @@
+Generic single-database configuration.
+- alembic upgrade head
+- alembic revision --autogenerate -m "Updated migration"
+- alembic upgrade head
