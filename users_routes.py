@@ -19,6 +19,8 @@ from sqlalchemy.future import select
 from sqlalchemy import update, and_
 from sqlalchemy.orm import selectinload
 import re 
+from redis_blacklist import add_token_to_blocklist, is_token_blocklisted
+
 
 # Add this phone validation pattern
 PHONE_REGEX = re.compile(r'^\+?[1-9]\d{1,14}$')  # E.164 format
@@ -28,6 +30,13 @@ user_router = APIRouter(prefix="/users", tags=["Users"])
 async def require_jwt(Authorize: AuthJWT = Depends()):
     try:
         Authorize.jwt_required()
+        raw_token = Authorize.get_raw_jwt()['jti']
+        if is_token_blocklisted(raw_token):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid or expired token"
+            )
+        
     except MissingTokenError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

@@ -9,6 +9,8 @@ from datetime import datetime
 from uuid import UUID 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+from redis_blacklist import add_token_to_blocklist, is_token_blocklisted
+
 
 order_router = APIRouter(
     prefix="/orders",
@@ -18,6 +20,12 @@ order_router = APIRouter(
 async def require_jwt(Authorize: AuthJWT = Depends()):
     try:
         Authorize.jwt_required()
+        raw_token = Authorize.get_raw_jwt()['jti']
+        if is_token_blocklisted(raw_token):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid or expired token"
+            )
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, 
                             detail="Invalid or expired token")

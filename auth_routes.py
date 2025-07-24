@@ -15,6 +15,7 @@ from sqlalchemy.orm import selectinload
 from email_validator import validate_email, EmailNotValidError
 import re
 from zxcvbn import zxcvbn
+from redis_blacklist import add_token_to_blocklist, is_token_blocklisted
 
 # Add this phone validation pattern
 PHONE_REGEX = re.compile(r'^\+?[1-9]\d{1,14}$')  # E.164 format
@@ -31,11 +32,22 @@ auth_router = APIRouter(
 async def require_jwt(Authorize: AuthJWT = Depends()):
     try:
         Authorize.jwt_required()
+        raw_token = Authorize.get_raw_jwt()['jti']
+        if is_token_blocklisted(raw_token):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid or expired token"
+            )
+
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired token"
-        )
+        # Catch specific jwt exceptions for better detail
+        if isinstance(e, HTTPException):
+            raise e
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid or expired token"
+            )
     return Authorize.get_jwt_subject()
 
 # HomePage Route
@@ -202,3 +214,28 @@ async def refresh(Authorize: AuthJWT = Depends()):
     return jsonable_encoder(
         {"new_access_token": new_access_token, "token_type": "bearer"}
     )
+
+# Logout Route
+@auth_router.post("/logout")
+async def logout(Authorize: AuthJWT = Depends()):
+    """
+    ## User Logout
+    This route allows a user to log out by invalidating their access token.
+    ### JWT Authentication Required
+    - The JWT token must be included in the request header as `Authorization Bearer <token>`.
+    ### Response
+    - Returns a success message if the logout is successful.
+    """
+    try:
+        Authorize.jwt_required()
+        raw_token = Authorize.get_raw_jwt()['jti']
+        add_token_to_blocklist(raw_token)
+        print(f"Token {raw_token} has been blocklisted.")
+        return jsonable_encoder({"message": "Logged out successfully"})
+    
+    except Exception as e:
+        # If the token is already invalid or expired, handle it gracefully
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not log out. Invalid or expired token provided."
+            )
