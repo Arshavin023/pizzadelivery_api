@@ -47,9 +47,9 @@ This repository contains a robust and scalable RESTful API for an eCommerce plat
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/profile` | GET | Get User Profile |
+| `/profile/retrieve` | GET | Get User Profile |
 | `/profiles` | GET | Get All User Profiles|
-| `/update/user` | PUT | Update User Information |
+| `/update/` | PUT | Update User Information |
 | `/update/address` | PUT | Update User Address  |
 
 ---
@@ -60,10 +60,13 @@ This repository contains a robust and scalable RESTful API for an eCommerce plat
 |----------|--------|-------------|
 | `/products` | GET | List Products |
 | `/products/{id}` | GET | Get Product Details |
-| `/products` | POST | Create Product (Admin) |
-| `/products/{id}` | PUT | Update Product (Admin) |
-| `/products/{id}` | DELETE | Delete Product (Admin) |
-| `/categories` |  POST  |  Create Category (Admin)  |
+| `/products/create/` | POST | Create Product (Admin) |
+| `/products/update/{id}` | PUT | Update Product (Admin) |
+| `/products/delete/{id}` | DELETE | Delete Product (Admin) |
+| `/product_variant/{id}` | GET | Get ProductVariant Details |
+| `/product_variant/create/` | POST | Create ProProductVariantduct (Admin) |
+| `/product_variant/update{id}` | PUT | Update ProductVariant (Admin) |
+| `/product_variant/delete/{id}` | DELETE | Delete ProductVariant (Admin) |
 
 ---
 
@@ -71,10 +74,10 @@ This repository contains a robust and scalable RESTful API for an eCommerce plat
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/orders` | POST | Place New Order |
+| `/orders/create` | POST | Place New Order |
 | `/orders/{id}` | GET | Get Order Details |
 | `/orders` | GET | List User Orders |
-| `/orders/{id}/status` | PUT | Update Order Status (Admin) |
+| `/orders/update/{id}/status` | PUT | Update Order Status (Admin) |
 
 ---
 
@@ -82,10 +85,10 @@ This repository contains a robust and scalable RESTful API for an eCommerce plat
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/categories` | POST | Create Category (Admin) |
+| `/categories/create` | POST | Create Category (Admin) |
 | `/categories` | GET | List Categories |
-| `/categories/{id}` | PUT | Update Category (Admin) |
-| `/categories/{id}` | DELETE | Delete Category (Admin) |
+| `/categories/update/{id}` | PUT | Update Category (Admin) |
+| `/categories/delete/{id}` | DELETE | Delete Category (Admin) |
 | `/inventory/{product_id}` | PUT | Update Inventory (Admin) |
 
 ---
