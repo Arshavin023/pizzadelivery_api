@@ -220,7 +220,7 @@ async def get_all_users(Authorize: AuthJWT = Depends(),
 
 
 # Update User Info Route
-@user_router.put("/update/user", response_model=UserResponseModel, 
+@user_router.put("/update/", response_model=UserResponseModel, 
                      status_code=status.HTTP_200_OK)
 async def update_user_info(user_update: UserUpdateModel, Authorize: AuthJWT = Depends(), 
                            db: AsyncSession = Depends(get_async_db)):

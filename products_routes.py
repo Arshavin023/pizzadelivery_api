@@ -376,7 +376,7 @@ async def update_product_variant(
         await db.refresh(variant, attribute_names=["product"]) # Refresh with product for response
         return variant
 
-@product_variant_router.delete("/{variant_id}", status_code=status.HTTP_204_NO_CONTENT)
+@product_variant_router.delete("/delete/{variant_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_product_variant(variant_id: UUID, db: AsyncSession = Depends(get_async_db)):
     """
     ## Delete Product Variant
