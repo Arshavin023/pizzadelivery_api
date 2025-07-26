@@ -195,7 +195,7 @@ class Category(Base):
     created_at = Column(DateTime, default=func.now()) # Added for consistency
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now()) # Added for consistency
 
-    products = relationship('Product', back_populates='category')
+    products = relationship('Product', back_populates='category',cascade='all, delete-orphan')
     children = relationship('Category', remote_side=[id]) # Corrected remote_side for self-referencing
 
 

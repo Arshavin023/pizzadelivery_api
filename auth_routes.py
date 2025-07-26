@@ -24,10 +24,7 @@ def is_password_strong(password):
     result = zxcvbn(password)
     return result['score'] >= 3  # Require minimum strength score
 
-auth_router = APIRouter(
-    prefix="/auth",
-    tags=["auth"]
-)
+auth_router = APIRouter()
 
 async def require_jwt(Authorize: AuthJWT = Depends()):
     try:

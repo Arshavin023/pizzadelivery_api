@@ -12,10 +12,7 @@ from sqlalchemy.future import select
 from redis_blacklist import add_token_to_blocklist, is_token_blocklisted
 
 
-order_router = APIRouter(
-    prefix="/orders",
-    tags=["orders"]
-)
+order_router = APIRouter()
 
 async def require_jwt(Authorize: AuthJWT = Depends()):
     try:

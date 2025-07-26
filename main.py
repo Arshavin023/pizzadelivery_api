@@ -1,9 +1,10 @@
 import inspect, re
 from fastapi import FastAPI
 from auth_routes import auth_router
-from order_routes import order_router
 from users_routes import user_router
-from products_routes import product_router, category_router, product_variant_router
+from order_routes import order_router
+from categories_routes import category_router
+from products_routes import product_router, product_variant_router
 from fastapi_jwt_auth import AuthJWT
 from schemas import Settings
 from fastapi.routing import APIRoute
@@ -63,11 +64,12 @@ app.openapi = custom_openapi
 def get_config():
     return Settings()
 
-app.include_router(auth_router)
-app.include_router(user_router)
-app.include_router(category_router)
-app.include_router(product_router)
-app.include_router(product_variant_router)
-app.include_router(order_router)
+app.include_router(auth_router, prefix="/auth", tags=["Authentication"])
+app.include_router(user_router, prefix="/users", tags=["Users"])
+app.include_router(order_router, prefix="/orders", tags=["Orders"])
+app.include_router(category_router, prefix="/categories", tags=["Categories"])
+app.include_router(product_router, prefix="/products", tags=["Products"])
+app.include_router(product_variant_router, prefix="/product-variants", tags=["Product Variants"])
+
 
 

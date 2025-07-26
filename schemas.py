@@ -161,7 +161,8 @@ class UserResponseModel(BaseModel):
     is_staff: Optional[bool]
     is_active: Optional[bool]
     full_address: Optional[str]  # from default address only
-    addresses: List[AddressResponseModel] = []
+    # addresses: List[AddressResponseModel] = []
+    updated_at: datetime
 
     class Config:
         from_attributes = True
@@ -187,7 +188,7 @@ class CategoryUpdate(CategoryBase):
 class CategoryResponse(CategoryBase):
     name: str = Field(..., max_length=50)
     description: Optional[str] = None
-    updated_at: datetime
+    updated_at: Optional[datetime]
 
     class Config:
         orm_mode = True # Enable ORM mode for automatic mapping from SQLAlchemy models
@@ -220,7 +221,7 @@ class ProductResponse(ProductBase):
     category: Optional[CategoryResponse] = None # Include category details in response
     is_active: Optional[bool] = None
     image_url: Optional[str] = Field(None, max_length=255)
-    updated_at: datetime
+    updated_at: Optional[datetime]
 
     class Config:
         orm_mode = True

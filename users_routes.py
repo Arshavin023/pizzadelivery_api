@@ -25,7 +25,7 @@ from redis_blacklist import add_token_to_blocklist, is_token_blocklisted
 # Add this phone validation pattern
 PHONE_REGEX = re.compile(r'^\+?[1-9]\d{1,14}$')  # E.164 format
 
-user_router = APIRouter(prefix="/users", tags=["Users"])
+user_router = APIRouter()
 
 async def require_jwt(Authorize: AuthJWT = Depends()):
     try:
@@ -104,21 +104,22 @@ async def get_user_info(Authorize: AuthJWT = Depends(),
     if not default_address and user.addresses:
         default_address = user.addresses[0]
 
-    # Build all addresses for nested response
-    address_models = []
-    for addr in user.addresses:
-        address_models.append(AddressResponseModel(
-            address_type=addr.address_type.code if addr.address_type else None,
-            street_address1=addr.street_address1,
-            street_address2=addr.street_address2,
-            postal_code=addr.postal_code,
-            city=addr.city,
-            state=addr.state,
-            country=addr.country,
-            full_address=addr.full_address,
-            is_default=addr.is_default,
-            updated_at=addr.updated_at
-        ))
+    # # Build nested list of addresses
+    # address_models = [
+    #     AddressResponseModel(
+    #         address_type=a.address_type.code if a.address_type else None,
+    #         street_address1=a.street_address1,
+    #         street_address2=a.street_address2,
+    #         postal_code=a.postal_code,
+    #         city=a.city,
+    #         state=a.state,
+    #         country=a.country,
+    #         full_address=a.full_address,
+    #         is_default=a.is_default,
+    #         updated_at=a.updated_at
+    #     )
+    #     for a in user.addresses
+    # ]
 
     response = UserResponseModel(
         username=user.username,
@@ -129,7 +130,8 @@ async def get_user_info(Authorize: AuthJWT = Depends(),
         is_staff=user.is_staff,
         is_active=user.is_active,
         full_address=default_address.full_address if default_address else None,
-        addresses=address_models
+        # addresses=address_models
+        updated_at=user.updated_at
     )
 
     return jsonable_encoder(response)
@@ -176,22 +178,22 @@ async def get_all_users(Authorize: AuthJWT = Depends(),
         if not default_address and user.addresses:
             default_address = user.addresses[0]
 
-        # Build nested list of addresses
-        address_models = [
-            AddressResponseModel(
-                address_type=a.address_type.code if a.address_type else None,
-                street_address1=a.street_address1,
-                street_address2=a.street_address2,
-                postal_code=a.postal_code,
-                city=a.city,
-                state=a.state,
-                country=a.country,
-                full_address=a.full_address,
-                is_default=a.is_default,
-                updated_at=a.updated_at
-            )
-            for a in user.addresses
-        ]
+        # # Build nested list of addresses
+        # address_models = [
+        #     AddressResponseModel(
+        #         address_type=a.address_type.code if a.address_type else None,
+        #         street_address1=a.street_address1,
+        #         street_address2=a.street_address2,
+        #         postal_code=a.postal_code,
+        #         city=a.city,
+        #         state=a.state,
+        #         country=a.country,
+        #         full_address=a.full_address,
+        #         is_default=a.is_default,
+        #         updated_at=a.updated_at
+        #     )
+        #     for a in user.addresses
+        # ]
 
         user_list.append(
             UserResponseModel(
@@ -204,8 +206,8 @@ async def get_all_users(Authorize: AuthJWT = Depends(),
                 is_staff=user.is_staff,
                 is_active=user.is_active,
                 full_address=default_address.full_address if default_address else None,
-                addresses=address_models,
-                updated_at=default_address.updated_at if default_address else None
+                # addresses=address_models,
+                updated_at=user.updated_at
             )
         )
 
@@ -262,16 +264,14 @@ async def update_user_info(user_update: UserUpdateModel, Authorize: AuthJWT = De
 
         # user.updated_at = datetime.now()  # Update timestamp
         
-        await db.commit()
-        
-        # Refresh with relationships
-        await db.refresh(user)
-        result = await db.execute(
-            select(User)
-            .options(selectinload(User.addresses))
-            .where(User.id == user.id)
-        )
-        updated_user = result.scalar_one()
+    # Refresh with relationships
+    await db.refresh(user)
+    result = await db.execute(
+        select(User)
+        .options(selectinload(User.addresses))
+        .where(User.id == user.id)
+    )
+    updated_user = result.scalar_one()
 
     # Prepare response
     default_address = next((a for a in updated_user.addresses if a.is_default), None)
@@ -305,8 +305,6 @@ async def update_user_info(user_update: UserUpdateModel, Authorize: AuthJWT = De
         is_staff=updated_user.is_staff,
         is_active=updated_user.is_active,
         full_address=default_address.full_address if default_address else None,
-        addresses=address_models,
-        created_at=updated_user.created_at,
         updated_at=updated_user.updated_at
     )
     return jsonable_encoder(response)

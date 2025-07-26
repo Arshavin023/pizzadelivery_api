@@ -2,8 +2,7 @@ from fastapi import APIRouter, status, Depends
 from fastapi_jwt_auth import AuthJWT
 from typing import List
 from models import User, Category, Product, ProductVariant
-from schemas import (CategoryCreate, CategoryUpdate, CategoryResponse,
-                     ProductCreate, ProductUpdate, ProductResponse, ProductVariantCreate, 
+from schemas import (ProductCreate, ProductUpdate, ProductResponse, ProductVariantCreate, 
                      ProductVariantUpdate, ProductVariantResponse)
 
 from database_connection.database import get_async_db  # <-- updated import
@@ -21,12 +20,11 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from redis_blacklist import add_token_to_blocklist, is_token_blocklisted
-
+from sqlalchemy.orm import selectinload
 
 # --- FastAPI Routers ---
-category_router = APIRouter(prefix="/categories", tags=["Categories"])
-product_router = APIRouter(prefix="/products", tags=["Products"])
-product_variant_router = APIRouter(prefix="/product_variants", tags=["Product Variants"])
+product_router = APIRouter()
+product_variant_router = APIRouter()
 
 async def require_jwt(Authorize: AuthJWT = Depends()):
     try:
@@ -72,154 +70,8 @@ async def hello(Authorize: AuthJWT = Depends()):
     await require_jwt(Authorize)
     return {"message": "Hello World"}
 
-# --- Category Routes ---
-@category_router.post("/create/", response_model=CategoryResponse, 
-                      status_code=status.HTTP_201_CREATED)
-async def create_category(category_data: CategoryCreate, 
-                          Authorize: AuthJWT = Depends(),
-                          db: AsyncSession = Depends(get_async_db)):
-    """
-    ## Create Category
-    This route allows you to create a new category.
-    """
-    current_user = await require_jwt(Authorize)
-    async with db.begin():
-        result = await db.execute(
-            select(User.is_staff).where(User.username == current_user)
-        )
-        user_row = result.first()
-
-        if not user_row or not user_row.is_staff:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="You do not have permission to access this resource"
-            )
-        
-        # Check for unique name
-        existing_category_name = await db.execute(
-            select(Category).where(Category.name.ilike(category_data.name))
-        )
-        if existing_category_name.scalar_one_or_none():
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Category with this name already exists."
-            )
-
-        new_category = Category(**category_data.dict())
-        db.add(new_category)
-        await db.commit() # Commit the transaction to save the new category
-        return new_category
-
-@category_router.get("/{category_id}", response_model=CategoryResponse)
-async def get_category(category_id: UUID, 
-                       Authorize: AuthJWT = Depends(),
-                       db: AsyncSession = Depends(get_async_db)):
-    """
-    ## Get Category by ID
-    This route retrieves a single category by its ID.
-    """
-    await require_jwt(Authorize)
-    category_result = await db.execute(
-        select(Category).where(Category.id == category_id)
-    )
-    category = category_result.scalar_one_or_none()
-    if not category:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
-    # return CategoryResponse.from_orm(category)
-    return category
-
-@category_router.get("/", response_model=List[CategoryResponse])
-async def get_all_categories(
-    Authorize: AuthJWT = Depends(),
-    db: AsyncSession = Depends(get_async_db)):
-    """
-    ## Get All Categories
-    This route retrieves a list of all categories.
-    """
-    await require_jwt(Authorize)
-    categories_result = await db.execute(select(Category))
-    categories = categories_result.scalars().all()
-    return categories
-
-@category_router.put("/{category_id}", response_model=CategoryResponse)
-async def update_category(
-    category_id: UUID, 
-    category_update: CategoryUpdate, 
-    Authorize: AuthJWT = Depends(),
-    db: AsyncSession = Depends(get_async_db)
-    ):
-    """
-    ## Update Category
-    This route updates an existing category by its ID.
-    """
-    current_user = await require_jwt(Authorize)
-
-    async with db.begin():
-        result = await db.execute(
-            select(User.is_staff).where(User.username == current_user)
-        )
-        user_row = result.first()
-
-        if not user_row or not user_row.is_staff:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="You do not have permission to access this resource"
-            )
-        
-        category_result = await db.execute(
-            select(Category).where(Category.id == category_id)
-        )
-        category = category_result.scalar_one_or_none()
-
-        if not category:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
-
-        update_data = category_update.dict(exclude_unset=True)
-        for field, value in update_data.items():
-            setattr(category, field, value)
-
-        await db.refresh(category)
-        return category
-
-@category_router.delete("/{category_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_category(category_id: UUID, 
-                          Authorize: AuthJWT = Depends(),
-                          db: AsyncSession = Depends(get_async_db)):
-    """
-    ## Delete Category
-    This route deletes a category by its ID.
-    Note: Deleting a category will also delete associated products and product variants
-    if ON DELETE CASCADE is configured in your database for the foreign key.
-    SQLAlchemy's `cascade='all, delete-orphan'` on `Product.variants` means deleting a Product
-    deletes its variants. Deleting a Category does NOT automatically delete Products
-    unless your database foreign key constraint is set to `ON DELETE CASCADE`.
-    """
-    current_user = await require_jwt(Authorize)
-    async with db.begin():
-        result = await db.execute(
-            select(User.is_staff).where(User.username == current_user)
-        )
-        user_row = result.first()
-
-        if not user_row or not user_row.is_staff:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="You do not have permission to access this resource"
-            )
-        
-        category_result = await db.execute(
-            select(Category).where(Category.id == category_id)
-        )
-        category = category_result.scalar_one_or_none()
-
-        if not category:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
-
-        await db.delete(category)
-        # No explicit commit needed here, db.begin() handles it on exit
-
 # --- Product Routes ---
-@product_router.post("/{category_id}", response_model=ProductResponse, 
+@product_router.post("/create/", response_model=ProductResponse, 
                      status_code=status.HTTP_201_CREATED)
 async def create_product(product_data: ProductCreate, 
                          Authorize: AuthJWT = Depends(),
@@ -252,12 +104,22 @@ async def create_product(product_data: ProductCreate,
                 detail="Category not found for the given category_id."
             )
 
+        #  Check for unique product name
+        existing_product_name = await db.execute(
+            select(Product).where(Product.name.ilike(product_data.name))
+        )
+        if existing_product_name.scalar_one_or_none():
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Product with this name already exists."
+            )
+
         new_product = Product(**product_data.dict())
         db.add(new_product)
         await db.flush()
         # Load the category relationship for the response
         await db.refresh(new_product, attribute_names=["category"])
-        return new_product
+        return ProductResponse.from_orm(new_product)
 
 @product_router.get("/{product_id}", response_model=ProductResponse)
 async def get_product(product_id: UUID, 
@@ -268,20 +130,19 @@ async def get_product(product_id: UUID,
     This route retrieves a single product by its ID, including its associated category.
     """
     await require_jwt(Authorize)
+    
     product_result = await db.execute(
-        select(Product).where(Product.id == product_id)
-    )
+        select(Product)
+            .options(selectinload(Product.category))  #eager-load category
+            .where(Product.id == product_id)
+        )
 
-    # product_result = await db.execute(
-    #     select(Product).options(selectinload(Product.category)).where(Product.id == product_id)
-    # )
     product = product_result.scalar_one_or_none()
     if not product:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, 
-                            detail="Product not found")
-    return product
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="Product not found")
+    return ProductResponse.from_orm(product)
 
-@product_router.get("/", response_model=List[ProductResponse])
+@product_router.get("/products/", response_model=List[ProductResponse])
 async def get_all_products(
     Authorize: AuthJWT = Depends(),
     db: AsyncSession = Depends(get_async_db)):
@@ -290,16 +151,16 @@ async def get_all_products(
     This route retrieves a list of all products, including their associated categories.
     """
     await require_jwt(Authorize)
-    products_result = await db.execute(select(Product))
-    products = products_result.scalars().all()
-
-    # products_result = await db.execute(
-    #     select(Product).options(selectinload(Product.category))
-    # )
+    # products_result = await db.execute(select(Product))
     # products = products_result.scalars().all()
+
+    products_result = await db.execute(
+        select(Product).options(selectinload(Product.category))
+    )
+    products = products_result.scalars().all()
     return products
 
-@product_router.put("/{product_id}", response_model=ProductResponse)
+@product_router.put("/update/{product_id}", response_model=ProductResponse)
 async def update_product(
     product_id: UUID, 
     product_update: ProductUpdate, 
@@ -323,9 +184,13 @@ async def update_product(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="You do not have permission to access this resource"
             )
+        
         product_result = await db.execute(
-            select(Product).where(Product.id == product_id)
+            select(Product)
+            .options(selectinload(Product.category))  # 👈 Load category eagerly
+            .where(Product.id == product_id)
         )
+
         product = product_result.scalar_one_or_none()
 
         if not product:
@@ -346,11 +211,12 @@ async def update_product(
         update_data = product_update.dict(exclude_unset=True)
         for field, value in update_data.items():
             setattr(product, field, value)
+        await db.commit() 
 
-        await db.refresh(product, attribute_names=["category"]) # Refresh with category for response
-        return product
+    await db.refresh(product)
+    return ProductResponse.from_orm(product)
 
-@product_router.delete("/{product_id}", status_code=status.HTTP_204_NO_CONTENT)
+@product_router.delete("/delete/{product_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_product(product_id: UUID, 
                          Authorize: AuthJWT = Depends(),
                          db: AsyncSession = Depends(get_async_db)):
