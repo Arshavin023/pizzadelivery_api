@@ -54,7 +54,19 @@ This repository contains a robust and scalable RESTful API for an eCommerce plat
 
 ---
 
-### 3. 🛍️ Product Management
+### 3. 🗂️ Category & Inventory
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/categories/create` | POST | Create Category (Admin) |
+| `/categories` | GET | List Categories |
+| `/categories/update/{id}` | PUT | Update Category (Admin) |
+| `/categories/delete/{id}` | DELETE | Delete Category (Admin) |
+| `/inventory/{product_id}` | PUT | Update Inventory (Admin) |
+
+---
+
+### 4. 🛍️ Product Management
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
@@ -70,7 +82,7 @@ This repository contains a robust and scalable RESTful API for an eCommerce plat
 
 ---
 
-### 4. 📦 Order Management
+### 5. 📦 Order Management
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
@@ -78,18 +90,6 @@ This repository contains a robust and scalable RESTful API for an eCommerce plat
 | `/orders/{id}` | GET | Get Order Details |
 | `/orders` | GET | List User Orders |
 | `/orders/update/{id}/status` | PUT | Update Order Status (Admin) |
-
----
-
-### 5. 🗂️ Category & Inventory
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/categories/create` | POST | Create Category (Admin) |
-| `/categories` | GET | List Categories |
-| `/categories/update/{id}` | PUT | Update Category (Admin) |
-| `/categories/delete/{id}` | DELETE | Delete Category (Admin) |
-| `/inventory/{product_id}` | PUT | Update Inventory (Admin) |
 
 ---
 
