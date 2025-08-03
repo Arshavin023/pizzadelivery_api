@@ -1,3 +1,5 @@
+# --- Existing and Expanded Pizza Data ---
+
 PIZZA_CATEGORIES = [
     ('CLASSIC', 'Classic Pizzas', 'Traditional favorites with simple, time-tested ingredients.'),
     ('SPECIALTY', 'Specialty Pizzas', 'Unique and bold pizza creations for adventurous tastes.'),
@@ -5,30 +7,144 @@ PIZZA_CATEGORIES = [
     ('DELUXE', 'Deluxe Pizzas', 'Loaded pizzas with premium toppings and generous portions.')
 ]
 
-PIZZA_FLAVOURS = [
-    ('MARGHERITA', 'Margherita', 'A simple yet delicious pizza with tomato sauce, mozzarella, and fresh basil.'),
-    ('PEPPERONI', 'Pepperoni', 'Classic American favorite with spicy pepperoni and mozzarella.'),
-    ('VEGGIE', 'Veggie', 'Topped with a variety of fresh vegetables like bell peppers, onions, olives, and mushrooms.'),
-    ('BBQ_CHICKEN', 'BBQ Chicken', 'Smoky BBQ sauce with grilled chicken, red onions, and mozzarella.'),
-    ('HAWAIIAN', 'Hawaiian', 'A tropical mix of ham and pineapple with tomato sauce and cheese.'),
-    ('MEAT_FEAST', 'Meat Feast', 'Packed with pepperoni, sausage, ham, beef, and bacon for meat lovers.'),
-    ('FOUR_CHEESE', 'Four Cheese', 'A creamy blend of mozzarella, cheddar, parmesan, and blue cheese.'),
-    ('BUFFALO', 'Buffalo', 'Spicy buffalo chicken with ranch or blue cheese drizzle.'),
-    ('MUSHROOM', 'Mushroom', 'Loaded with mushrooms and cheese, optionally with garlic butter.')
+PIZZA_PRODUCTS = [
+    # --- CLASSIC CATEGORY ---
+    {
+        'code': 'MARGHERITA',
+        'name': 'Margherita',
+        'description': 'A simple yet delicious pizza with tomato sauce, mozzarella, and fresh basil.',
+        'price': 10.00,
+        'category_code': 'CLASSIC'
+    },
+    {
+        'code': 'PEPPERONI',
+        'name': 'Pepperoni',
+        'description': 'Classic American favorite with spicy pepperoni and mozzarella.',
+        'price': 12.00,
+        'category_code': 'CLASSIC'
+    },
+    {
+        'code': 'HAWAIIAN',
+        'name': 'Hawaiian',
+        'description': 'A tropical mix of ham and pineapple with tomato sauce and cheese.',
+        'price': 12.00,
+        'category_code': 'CLASSIC'
+    },
+    {
+        'code': 'FOUR_CHEESE',
+        'name': 'Four Cheese',
+        'description': 'A creamy blend of mozzarella, cheddar, parmesan, and blue cheese.',
+        'price': 11.00,
+        'category_code': 'CLASSIC'
+    },
+    {
+        'code': 'MUSHROOM',
+        'name': 'Mushroom',
+        'description': 'Loaded with mushrooms and cheese, optionally with garlic butter.',
+        'price': 10.00,
+        'category_code': 'CLASSIC'
+    },
+    {
+        'code': 'SUPREME',
+        'name': 'Supreme',
+        'description': 'The ultimate classic combo with pepperoni, sausage, peppers, onions, and mushrooms.',
+        'price': 13.50,
+        'category_code': 'CLASSIC'
+    },
+    {
+        'code': 'PROSCIUTTO',
+        'name': 'Prosciutto',
+        'description': 'A classic Italian pizza with cured ham, mozzarella, and fresh arugula.',
+        'price': 14.00,
+        'category_code': 'CLASSIC'
+    },
+
+    # --- SPECIALTY CATEGORY ---
+    {
+        'code': 'BBQ_CHICKEN',
+        'name': 'BBQ Chicken',
+        'description': 'Smoky BBQ sauce with grilled chicken, red onions, and mozzarella.',
+        'price': 13.00,
+        'category_code': 'SPECIALTY'
+    },
+    {
+        'code': 'BUFFALO',
+        'name': 'Buffalo',
+        'description': 'Spicy buffalo chicken with ranch or blue cheese drizzle.',
+        'price': 13.00,
+        'category_code': 'SPECIALTY'
+    },
+    {
+        'code': 'PESTO_CHICKEN',
+        'name': 'Pesto Chicken',
+        'description': 'A unique pizza with a pesto base, grilled chicken, and cherry tomatoes.',
+        'price': 14.50,
+        'category_code': 'SPECIALTY'
+    },
+    {
+        'code': 'MEDITERRANEAN',
+        'name': 'Mediterranean',
+        'description': 'A savory combination of feta cheese, black olives, red onions, and spinach.',
+        'price': 13.00,
+        'category_code': 'SPECIALTY'
+    },
+
+    # --- VEGAN CATEGORY ---
+    {
+        'code': 'VEGGIE',
+        'name': 'Veggie',
+        'description': 'Topped with a variety of fresh vegetables like bell peppers, onions, olives, and mushrooms.',
+        'price': 11.00,
+        'category_code': 'VEGAN'
+    },
+    {
+        'code': 'VEGAN_SUPREME',
+        'name': 'Vegan Supreme',
+        'description': 'A fully plant-based supreme pizza with vegan pepperoni, sausage, peppers, and onions.',
+        'price': 14.00,
+        'category_code': 'VEGAN'
+    },
+    {
+        'code': 'VEGAN_MARGHERITA',
+        'name': 'Vegan Margherita',
+        'description': 'A vegan twist on a classic with tomato sauce, plant-based cheese, and fresh basil.',
+        'price': 11.00,
+        'category_code': 'VEGAN'
+    },
+
+    # --- DELUXE CATEGORY ---
+    {
+        'code': 'MEAT_FEAST',
+        'name': 'Meat Feast',
+        'description': 'Packed with pepperoni, sausage, ham, beef, and bacon for meat lovers.',
+        'price': 14.00,
+        'category_code': 'DELUXE'
+    },
+    {
+        'code': 'SEAFOOD_LOVERS',
+        'name': 'Seafood Lovers',
+        'description': 'A premium seafood selection with shrimp, calamari, mussels, and garlic.',
+        'price': 16.00,
+        'category_code': 'DELUXE'
+    },
+    {
+        'code': 'STEAK_AND_CHEESE',
+        'name': 'Steak and Cheese',
+        'description': 'Thinly sliced steak, green peppers, onions, and a generous amount of cheese.',
+        'price': 15.50,
+        'category_code': 'DELUXE'
+    },
+    {
+        'code': 'TRUFFLE_MUSHROOM',
+        'name': 'Truffle Mushroom',
+        'description': 'An elegant pizza with assorted mushrooms, truffle oil, and a blend of gourmet cheeses.',
+        'price': 16.50,
+        'category_code': 'DELUXE'
+    },
 ]
 
 
-PIZZA_PRICES = {
-    'MARGHERITA': 10.00,
-    'PEPPERONI': 12.00,
-    'VEGGIE': 11.00,
-    'BBQ_CHICKEN': 13.00,
-    'HAWAIIAN': 12.00,
-    'MEAT_FEAST': 14.00,
-    'FOUR_CHEESE': 11.00,
-    'BUFFALO': 13.00,
-    'MUSHROOM': 10.00
-}
+# --- Other Data Remains the Same ---
 
 PIZZA_SIZES = (
     ('SMALL', 'small'),

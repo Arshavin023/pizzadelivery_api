@@ -115,7 +115,7 @@ async def get_category(category_id: UUID,
     ## Get Category by ID
     This route retrieves a single category by its ID.
     """
-    await require_jwt(Authorize)
+    # await require_jwt(Authorize)
     category_result = await db.execute(
         select(Category).where(Category.id == category_id)
     )
@@ -133,7 +133,7 @@ async def get_all_categories(
     ## Get All Categories
     This route retrieves a list of all categories.
     """
-    await require_jwt(Authorize)
+    # await require_jwt(Authorize)
     categories_result = await db.execute(select(Category))
     categories = categories_result.scalars().all()
     return categories

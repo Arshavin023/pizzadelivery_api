@@ -231,7 +231,7 @@ class ProductVariantBase(BaseModel):
     product_id: UUID
     name: str = Field(..., max_length=50)
     price_modifier: float = Field(0.00, ge=0)
-    sku: str = Field(..., max_length=50)
+    sku: Optional[str] = Field(None, max_length=50)
 
 class ProductVariantCreate(ProductVariantBase):
     pass
