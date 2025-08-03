@@ -58,10 +58,10 @@ This repository contains a robust and scalable RESTful API for an eCommerce plat
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/categories/create` | POST | Create Category (Admin) |
-| `/categories` | GET | List Categories |
-| `/categories/update/{id}` | PUT | Update Category (Admin) |
-| `/categories/delete/{id}` | DELETE | Delete Category (Admin) |
+| `/category/create` | POST | Create Category (Admin) |
+| `/category` | GET | List Categories |
+| `/category/update/{id}` | PUT | Update Category (Admin) |
+| `/category/delete/{id}` | DELETE | Delete Category (Admin) |
 | `/inventory/{product_id}` | PUT | Update Inventory (Admin) |
 
 ---
@@ -70,11 +70,11 @@ This repository contains a robust and scalable RESTful API for an eCommerce plat
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/products` | GET | List Products |
-| `/products/{id}` | GET | Get Product Details |
-| `/products/create/` | POST | Create Product (Admin) |
-| `/products/update/{id}` | PUT | Update Product (Admin) |
-| `/products/delete/{id}` | DELETE | Delete Product (Admin) |
+| `/product` | GET | List Products |
+| `/product/{id}` | GET | Get Product Details |
+| `/product/create/` | POST | Create Product (Admin) |
+| `/product/update/{id}` | PUT | Update Product (Admin) |
+| `/product/delete/{id}` | DELETE | Delete Product (Admin) |
 | `/product_variant/{id}` | GET | Get ProductVariant Details |
 | `/product_variant/create/` | POST | Create ProProductVariantduct (Admin) |
 | `/product_variant/update{id}` | PUT | Update ProductVariant (Admin) |
