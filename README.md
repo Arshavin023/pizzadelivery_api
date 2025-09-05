@@ -47,10 +47,10 @@ This repository contains a robust and scalable RESTful API for an eCommerce plat
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/profile/retrieve` | GET | Get User Profile |
-| `/profiles` | GET | Get All User Profiles|
-| `/update/` | PUT | Update User Information |
-| `/update/address` | PUT | Update User Address  |
+| `/api/users/profile/retrieve` | GET | Get User Profile |
+| `/api/users/profiles` | GET | Get All User Profiles|
+| `/api/users/update_biodata/` | PUT | Update User Information |
+| `/api/users/update_address` | PUT | Update User Address  |
 
 ---
 
@@ -58,10 +58,11 @@ This repository contains a robust and scalable RESTful API for an eCommerce plat
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/category/create` | POST | Create Category (Admin) |
-| `/category` | GET | List Categories |
-| `/category/update/{id}` | PUT | Update Category (Admin) |
-| `/category/delete/{id}` | DELETE | Delete Category (Admin) |
+| `/api/categories/create` | POST | Create Category (Admin) |
+| `/api/categories/retrieve/{category_id}` | GET | Get Category |
+| `/api/categories/categories` | GET | Get Categories |
+| `/api/categories/update/{category_id}` | PUT | Update Category (Admin) |
+| `/api/categories/delete/{category_id}` | DELETE | Delete Category (Admin) |
 | `/inventory/{product_id}` | PUT | Update Inventory (Admin) |
 
 ---
@@ -70,15 +71,16 @@ This repository contains a robust and scalable RESTful API for an eCommerce plat
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/product` | GET | List Products |
-| `/product/{id}` | GET | Get Product Details |
-| `/product/create/` | POST | Create Product (Admin) |
-| `/product/update/{id}` | PUT | Update Product (Admin) |
-| `/product/delete/{id}` | DELETE | Delete Product (Admin) |
-| `/product_variant/{id}` | GET | Get ProductVariant Details |
-| `/product_variant/create/` | POST | Create ProProductVariantduct (Admin) |
-| `/product_variant/update{id}` | PUT | Update ProductVariant (Admin) |
-| `/product_variant/delete/{id}` | DELETE | Delete ProductVariant (Admin) |
+| `/api/products/products` | GET | List Products |
+| `/api/products/{product_id}` | GET | Get Product Details |
+| `/api/products/create/` | POST | Create Product (Admin) |
+| `/api/products/update/{product_id}` | PUT | Update Product (Admin) |
+| `/api/products/delete/{product_id}` | DELETE | Delete Product (Admin) |
+| `/api/product-variants/{variant_id}` | GET | Get ProductVariant Detail |
+| `/api/product-variants/product_variants` | GET | Get ProductVariants Details |
+| `/api/product-variants/create/` | POST | Create ProProductVariantduct (Admin) |
+| `/api/product-variants/update/{variant_id}` | PUT | Update ProductVariant (Admin) |
+| `/api/product-variants/delete/{variant_id}` | DELETE | Delete ProductVariant (Admin) |
 
 ---
 
@@ -86,10 +88,10 @@ This repository contains a robust and scalable RESTful API for an eCommerce plat
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/orders/create` | POST | Place New Order |
-| `/orders/{id}` | GET | Get Order Details |
-| `/orders` | GET | List User Orders |
-| `/orders/update/{id}/status` | PUT | Update Order Status (Admin) |
+| `/api/orders/create` | POST | Place New Order |
+| `/api/orders/{order_id}` | GET | Get Order Details |
+| `/api/orders/orders` | GET | List User Orders |
+| `/api/orders/update/{order_id}/status` | PUT | Update Order Status (Admin) |
 
 ---
 
@@ -97,10 +99,10 @@ This repository contains a robust and scalable RESTful API for an eCommerce plat
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/cart` | POST | Add Item to Cart |
-| `/cart` | GET | Get Cart Items |
-| `/cart/{item_id}` | DELETE | Remove Item from Cart |
-| `/checkout` | POST | Checkout and Create Order |
+| `/api/carts/create` | POST | Add Item to Cart |
+| `/api/carts/{item_id}` | GET | Get Cart Items |
+| `/api/carts//{item_id}` | DELETE | Remove Item from Cart |
+| `/api/carts/checkout` | POST | Checkout and Create Order |
 
 ---
 
@@ -108,8 +110,8 @@ This repository contains a robust and scalable RESTful API for an eCommerce plat
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/payment` | POST | Initiate Payment |
-| `/payment/verify/{transaction_id}` | GET | Verify Payment Status |
+| `/api/payments/create` | POST | Initiate Payment |
+| `/api/payments/verify/{transaction_id}` | GET | Verify Payment Status |
 
 ---
 
@@ -117,8 +119,8 @@ This repository contains a robust and scalable RESTful API for an eCommerce plat
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/reviews` | POST | Add Product Review |
-| `/products/{id}/reviews` | GET | Get Reviews for Product |
+| `/api/reviews/create` | POST | Add Product Review |
+| `/api/reviews/{review_id}` | GET | Get Reviews for Product |
 
 ---
 
@@ -126,8 +128,8 @@ This repository contains a robust and scalable RESTful API for an eCommerce plat
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/notifications` | GET | List Order Notifications |
-| `/notifications/{id}` | PUT | Mark Notification as Read |
+| `/api/notifications` | GET | List Order Notifications |
+| `/api/notifications/{notification_id}` | PUT | Mark Notification as Read |
 
 ---
 
@@ -135,9 +137,9 @@ This repository contains a robust and scalable RESTful API for an eCommerce plat
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/reports/sales` | GET | Get Sales Report |
-| `/reports/users` | GET | Get User Analytics |
-| `/dashboard/stats` | GET | Get Summary Stats |
+| `/api/reports/sales` | GET | Get Sales Report |
+| `/api/reports/users` | GET | Get User Analytics |
+| `/api/reports/dashboard/stats` | GET | Get Summary Stats |
 
 ---
 
