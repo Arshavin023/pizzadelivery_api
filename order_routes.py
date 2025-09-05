@@ -1,5 +1,6 @@
 from fastapi import APIRouter, status, Depends
 from fastapi_jwt_auth import AuthJWT
+from auth_routes import require_jwt
 from models import User, Order
 from schemas import OrderModel,OrderResponseModel,OrderStatusUpdateModel,OrderListResponseModel
 from database_connection.database import get_async_db  # <-- updated import
@@ -14,25 +15,6 @@ from redis_blacklist import add_token_to_blocklist, is_token_blocklisted
 
 order_router = APIRouter()
 
-async def require_jwt(Authorize: AuthJWT = Depends()):
-    try:
-        Authorize.jwt_required()
-        raw_token = Authorize.get_raw_jwt()['jti']
-        if is_token_blocklisted(raw_token):
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid or expired token"
-            )
-    except Exception as e:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, 
-                            detail="Invalid or expired token")
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Invalid JWT header"
-            )
-    return Authorize.get_jwt_subject()
-
 @order_router.get("/")
 async def hello(Authorize: AuthJWT = Depends()):
     """
@@ -46,7 +28,7 @@ async def hello(Authorize: AuthJWT = Depends()):
     return {"message": "Hello World"}
 
 # Place Order Route
-@order_router.post("/order", response_model=OrderResponseModel, 
+@order_router.post("/create_order", response_model=OrderResponseModel, 
                    status_code=status.HTTP_201_CREATED)
 async def place_order(order: OrderModel, 
                       db: AsyncSession = Depends(get_async_db),  # <- AsyncSession here
@@ -93,7 +75,7 @@ async def place_order(order: OrderModel,
     return jsonable_encoder(response)  # Return the newly created order as a JSON respons
 
 # List All Orders Route SuperAdmin
-@order_router.get("/list_all_orders", response_model=OrderListResponseModel)
+@order_router.get("/show_all_orders", response_model=OrderListResponseModel)
 async def list_all_orders(db: AsyncSession = Depends(get_async_db),
                      Authorize: AuthJWT = Depends()):
     """
@@ -135,7 +117,7 @@ async def list_all_orders(db: AsyncSession = Depends(get_async_db),
                             detail="You are not authorized to view all orders")
 
 # Get Any User's Order Route
-@order_router.get("/orders/{order_id}", response_model=OrderResponseModel)
+@order_router.get("/show_any_order/{order_id}", response_model=OrderResponseModel)
 async def get_specific_order(order_id:UUID, db: AsyncSession = Depends(get_async_db),
                           Authorize: AuthJWT = Depends()):
     """
@@ -173,7 +155,7 @@ async def get_specific_order(order_id:UUID, db: AsyncSession = Depends(get_async
 
 
 # Get Current User's Orders Route
-@order_router.get("/user/orders", response_model=OrderListResponseModel)
+@order_router.get("/show_orders", response_model=OrderListResponseModel)
 async def get_my_orders(db: AsyncSession = Depends(get_async_db),
                         Authorize: AuthJWT = Depends()):
     """
@@ -211,7 +193,7 @@ async def get_my_orders(db: AsyncSession = Depends(get_async_db),
     return jsonable_encoder(response)
 
 # Get Current User's Order by ID Route
-@order_router.get("/user/orders/order/{order_id}", response_model=OrderResponseModel)
+@order_router.get("/show_order/{order_id}", response_model=OrderResponseModel)
 async def get_my_order(order_id: UUID, 
                        db: AsyncSession = Depends(get_async_db),
                        Authorize: AuthJWT = Depends()):
@@ -255,7 +237,7 @@ async def get_my_order(order_id: UUID,
     return jsonable_encoder(response)
 
 # Update User's Order Route
-@order_router.put("/order/update/{order_id}/", response_model=OrderResponseModel)
+@order_router.put("/update_order_spec/{order_id}/", response_model=OrderResponseModel)
 async def update_order(order_id: UUID, order: OrderModel, 
                        db: AsyncSession = Depends(get_async_db),
                        Authorize: AuthJWT = Depends()):
@@ -306,7 +288,7 @@ async def update_order(order_id: UUID, order: OrderModel,
     
 
 # Update Order Status Route SuperAdmin
-@order_router.put("/order/update/status/{order_id}/", 
+@order_router.put("/update_order_status/{order_id}/", 
                   response_model=OrderStatusUpdateModel)
 async def update_order_status(order_id: UUID,
                                 updated_status: OrderStatusUpdateModel,
@@ -353,8 +335,8 @@ async def update_order_status(order_id: UUID,
     
     return jsonable_encoder(response)
 
-# Delete Order Route
-@order_router.delete("/order/delete/{order_id}/", 
+# Delete Order Route_
+@order_router.delete("/delete_order/{order_id}/", 
                      status_code=status.HTTP_204_NO_CONTENT
                     #  response_model=OrderResponseModel
                      )

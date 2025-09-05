@@ -33,9 +33,9 @@ class User(Base):
 
 class Address(Base):
     __tablename__ = 'addresses'
-    __table_args__ = {
-        'postgresql_partition_by': 'LIST (country)'
-    }
+    # __table_args__ = {
+    #     'postgresql_partition_by': 'LIST (country)'
+    # }
     ADDRESS_TYPES = (
         ('HOME', 'home'),
         ('WORK', 'work'),
@@ -74,86 +74,7 @@ class Address(Base):
             self.country
         ]
         return ' '.join(filter(None, lines))
-# class Order(Base):
-#     PIZZA_FLAVOURS = (
-#     ('MARGHERITA', 'Margherita'),
-#     ('PEPPERONI', 'Pepperoni'),
-#     ('VEGGIE', 'Veggie'),
-#     ('BBQ_CHICKEN', 'BBQ Chicken'),
-#     ('HAWAIIAN', 'Hawaiian'),
-#     ('MEAT_FEAST', 'Meat Feast'),
-#     ('FOUR_CHEESE', 'Four Cheese'),
-#     ('BUFFALO', 'Buffalo'),
-#     ('MUSHROOM', 'Mushroom'),
-#     )
 
-#     PIZZA_PRICES = {
-#         'MARGHERITA': 10,
-#         'PEPPERONI': 12,
-#         'VEGGIE': 11,
-#         'BBQ_CHICKEN': 13,
-#         'HAWAIIAN': 12,
-#         'MEAT_FEAST': 14,
-#         'FOUR_CHEESE': 11,
-#         'BUFFALO': 13,
-#         'MUSHROOM': 10
-#     }
-
-#     ORDER_STATUSES = (
-#         ('PENDING', 'pending'),
-#         ('IN-TRANSIT', 'in-transit'),
-#         ('DELIVERED', 'delivered'),
-#         ('CANCELLED', 'cancelled')
-#     )
-#     PIZZA_SIZES = (
-#         ('SMALL', 'small'),
-#         ('MEDIUM', 'medium'),
-#         ('LARGE', 'large'),
-#         ('EXTRA-LARGE', 'extra-large')
-#     )
-
-#     __tablename__ = 'orders'
-#     id = Column(PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-#     quantity = Column(Integer, nullable=False)
-#     order_status = Column(ChoiceType(choices=ORDER_STATUSES), default='PENDING')
-#     pizza_size = Column(ChoiceType(choices=PIZZA_SIZES), default='SMALL')
-#     flavour = Column(ChoiceType(choices=PIZZA_FLAVOURS), default='MARGHERITA')
-#     user_id = Column(PG_UUID(as_uuid=True), ForeignKey('users.id'), nullable=False)
-#     total_cost = Column(Integer, nullable=False, default=0)
-#     time_created = Column(DateTime, default=func.now())
-#     user = relationship('User', back_populates='orders')
-
-#     @property
-#     def price(self):
-#         # Use .code if using ChoiceType (can vary based on sqlalchemy-utils version)
-#         flavour_code = self.flavour.code if hasattr(self.flavour, "code") else self.flavour
-#         return self.PIZZA_PRICES.get(flavour_code, 0)
-
-#     @property
-#     def total(self):
-#         return self.price * self.quantity
-    
-#     def __repr__(self):
-#         return (
-#             f"<Order(id={self.id}, user_id={self.customer_id}, "
-#             f"quantity={self.quantity}, status={self.order_status}, "
-#             f"size={self.pizza_size}, flavour={self.flavour})>"
-#         )
-    
-#     @property
-#     def pizza_size_code(self):
-#         return self.pizza_size.code if self.pizza_size else None
-#     @property
-#     def flavour_code(self):
-#         return self.flavour.code if self.flavour else None
-#     @property
-#     def order_status_code(self):
-#         return self.order_status.code if self.order_status else None
-
-# @event.listens_for(Order, 'before_insert')
-# @event.listens_for(Order, 'before_update')
-# def set_total_cost(mapper, connection, target):
-#     target.total_cost = target.total
 
 class Product(Base):
     __tablename__ = 'products'
@@ -198,10 +119,12 @@ class Category(Base):
     products = relationship('Product', back_populates='category',cascade='all, delete-orphan')
     children = relationship('Category', remote_side=[id]) # Corrected remote_side for self-referencing
 
-
 class OrderItem(Base):
     __tablename__ = 'order_items'
-    
+    __table_args__ = (
+        {'postgresql_partition_by': 'HASH (order_id)'}
+    )
+    # The rest of your existing columns...
     id = Column(PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     order_id = Column(PG_UUID(as_uuid=True), ForeignKey('orders.id'), nullable=False)
     product_id = Column(PG_UUID(as_uuid=True), ForeignKey('products.id'), nullable=False)
@@ -210,13 +133,18 @@ class OrderItem(Base):
     unit_price = Column(Numeric(10, 2), nullable=False)
     notes = Column(Text)
     
+    # Relationships
     order = relationship('Order', back_populates='items')
     product = relationship('Product')
     variant = relationship('ProductVariant')
 
+
 class Order(Base):
     __tablename__ = 'orders'
-    
+    __table_args__ = (
+        {'postgresql_partition_by': 'RANGE (created_at)'}
+    )
+
     ORDER_STATUSES = (
         ('PENDING', 'pending'),
         ('CONFIRMED', 'confirmed'),
@@ -226,7 +154,8 @@ class Order(Base):
         ('CANCELLED', 'cancelled'),
         ('REFUNDED', 'refunded')
     )
-    
+
+    # The rest of your existing columns...
     id = Column(PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id = Column(PG_UUID(as_uuid=True), ForeignKey('users.id'), nullable=False)
     status = Column(ChoiceType(choices=ORDER_STATUSES), default='PENDING')
@@ -235,14 +164,19 @@ class Order(Base):
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
     
+    # Relationships
     user = relationship('User', back_populates='orders')
     delivery_address = relationship('Address', back_populates='orders')
     payment = relationship('Payment', uselist=False, back_populates='order')
     items = relationship('OrderItem', back_populates='order',cascade='all, delete-orphan')
 
+
 class Payment(Base):
     __tablename__ = 'payments'
-    
+    __table_args__ = (
+        {'postgresql_partition_by': 'RANGE (created_at)'}
+    )
+
     PAYMENT_STATUSES = (
         ('PENDING', 'pending'),
         ('COMPLETED', 'completed'),
@@ -258,17 +192,19 @@ class Payment(Base):
         ('STRIPE', 'stripe'),
         ('CASH_ON_DELIVERY', 'cash_on_delivery')
     )
-    
+
+    # The rest of your existing columns...
     id = Column(PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     order_id = Column(PG_UUID(as_uuid=True), ForeignKey('orders.id'), nullable=False)
     amount = Column(Numeric(10, 2), nullable=False)
     status = Column(ChoiceType(choices=PAYMENT_STATUSES), default='PENDING')
     method = Column(ChoiceType(choices=PAYMENT_METHODS), nullable=False)
-    transaction_id = Column(String(100))  # From payment gateway
-    gateway_response = Column(JSON)  # Raw response from payment processor
+    transaction_id = Column(String(100))
+    gateway_response = Column(JSON)
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
     
+    # Relationships
     order = relationship('Order', back_populates='payment')
     refunds = relationship('Refund', back_populates='payment',cascade='all, delete-orphan')
 
@@ -338,27 +274,35 @@ class CartItem(Base):
 
 class Review(Base):
     __tablename__ = 'reviews'
-    
+    __table_args__ = (
+        {'postgresql_partition_by': 'HASH (product_id)'}
+    )
+    # The rest of your existing columns...
     id = Column(PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     product_id = Column(PG_UUID(as_uuid=True), ForeignKey('products.id'))
     user_id = Column(PG_UUID(as_uuid=True), ForeignKey('users.id'))
-    rating = Column(Integer, nullable=False)  # 1-5
+    rating = Column(Integer, nullable=False)
     comment = Column(Text)
     created_at = Column(DateTime, default=func.now())
     
+    # Relationships
     product = relationship('Product')
     user = relationship('User')
 
 class Notification(Base):
     __tablename__ = 'notifications'
-    
+    __table_args__ = (
+        {'postgresql_partition_by': 'HASH (user_id)'}
+    )
+    # The rest of your existing columns...
     id = Column(PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id = Column(PG_UUID(as_uuid=True), ForeignKey('users.id'))
     message = Column(Text, nullable=False)
     is_read = Column(Boolean, default=False)
-    notification_type = Column(String(50))  # 'order', 'payment', etc.
-    reference_id = Column(PG_UUID(as_uuid=True))  # ID of related entity
+    notification_type = Column(String(50))
+    reference_id = Column(PG_UUID(as_uuid=True))
     created_at = Column(DateTime, default=func.now())
     
+    # Relationship
     user = relationship('User')
 

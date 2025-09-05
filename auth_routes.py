@@ -9,6 +9,13 @@ from database_connection.database import get_async_db  # <-- updated import
 from fastapi.exceptions import HTTPException
 from werkzeug.security import generate_password_hash, check_password_hash
 from fastapi_jwt_auth import AuthJWT
+from fastapi_jwt_auth.exceptions import (
+    MissingTokenError,
+    InvalidHeaderError,
+    RevokedTokenError,
+    AccessTokenRequired,
+    JWTDecodeError
+)
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
@@ -30,21 +37,32 @@ async def require_jwt(Authorize: AuthJWT = Depends()):
     try:
         Authorize.jwt_required()
         raw_token = Authorize.get_raw_jwt()['jti']
-        if is_token_blocklisted(raw_token):
+        if await is_token_blocklisted(raw_token):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid or expired token"
-            )
-
-    except Exception as e:
-        # Catch specific jwt exceptions for better detail
-        if isinstance(e, HTTPException):
-            raise e
-        else:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid or expired token"
-            )
+                detail="Invalid or expired token")
+        
+    except MissingTokenError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authorization token is missing")
+    except InvalidHeaderError:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Invalid JWT header format")
+    except JWTDecodeError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired JWT token")
+    except RevokedTokenError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token has been revoked")
+    except AccessTokenRequired:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Access token is required")
+    
     return Authorize.get_jwt_subject()
 
 # HomePage Route
@@ -225,14 +243,11 @@ async def logout(Authorize: AuthJWT = Depends()):
     """
     try:
         Authorize.jwt_required()
-        raw_token = Authorize.get_raw_jwt()['jti']
-        add_token_to_blocklist(raw_token)
-        print(f"Token {raw_token} has been blocklisted.")
-        return jsonable_encoder({"message": "Logged out successfully"})
-    
-    except Exception as e:
-        # If the token is already invalid or expired, handle it gracefully
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Could not log out. Invalid or expired token provided."
-            )
+        raw_jwt = Authorize.get_raw_jwt()
+        jti = raw_jwt['jti']
+        exp_timestamp = raw_jwt['exp']
+        expires_in = exp_timestamp - int(datetime.now().timestamp())
+        await add_token_to_blocklist(jti, expires_in)
+        return {"message": "Logged out successfully"}
+    except:
+        raise HTTPException(status_code=401, detail="Could not log out.")

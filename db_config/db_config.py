@@ -1,6 +1,6 @@
 import configparser
 
-def read_db_config(filename='/home/ubuntu/database_credentials/config.ini', section='database'):
+def read_db_config(filename='/home/uche-nnodim/database_credentials/config.ini', section='database'):
     # Create a parser
     parser = configparser.ConfigParser()
     # Read the configuration file

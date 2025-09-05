@@ -65,12 +65,12 @@ app.openapi = custom_openapi
 def get_config():
     return Settings()
 
-app.include_router(auth_router, prefix="/auth", tags=["Authentication"])
-app.include_router(user_router, prefix="/user", tags=["Users"])
-app.include_router(order_router, prefix="/order", tags=["Orders"])
-app.include_router(category_router, prefix="/category", tags=["Categories"])
-app.include_router(products_router, prefix="/product", tags=["Products"])
-app.include_router(product_variants_router, prefix="/product-variant", tags=["Product Variants"])
+app.include_router(auth_router, prefix="/api/auth", tags=["Authentication"])
+app.include_router(user_router, prefix="/api/users", tags=["Users"])
+app.include_router(order_router, prefix="/api/orders", tags=["Orders"])
+app.include_router(category_router, prefix="/api/product-categories", tags=["Categories"])
+app.include_router(products_router, prefix="/api/products", tags=["Products"])
+app.include_router(product_variants_router, prefix="/api/product-variants", tags=["Product Variants"])
 
 
 

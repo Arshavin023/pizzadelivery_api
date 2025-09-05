@@ -6,13 +6,7 @@ from schemas import (UserResponseModel, UserUpdateModel, UserListResponseModel,
 from database_connection.database import get_async_db  # <-- updated import
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi.exceptions import HTTPException
-from fastapi_jwt_auth.exceptions import (
-    MissingTokenError,
-    InvalidHeaderError,
-    RevokedTokenError,
-    AccessTokenRequired,
-    JWTDecodeError
-)
+from auth_routes import require_jwt
 from fastapi.encoders import jsonable_encoder
 from datetime import datetime
 from sqlalchemy.future import select
@@ -26,39 +20,6 @@ from redis_blacklist import add_token_to_blocklist, is_token_blocklisted
 PHONE_REGEX = re.compile(r'^\+?[1-9]\d{1,14}$')  # E.164 format
 
 user_router = APIRouter()
-
-async def require_jwt(Authorize: AuthJWT = Depends()):
-    try:
-        Authorize.jwt_required()
-        raw_token = Authorize.get_raw_jwt()['jti']
-        if is_token_blocklisted(raw_token):
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid or expired token"
-            )
-        
-    except MissingTokenError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authorization token is missing")
-    except InvalidHeaderError:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Invalid JWT header format")
-    except JWTDecodeError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired JWT token")
-    except RevokedTokenError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token has been revoked")
-    except AccessTokenRequired:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Access token is required")
-    
-    return Authorize.get_jwt_subject()
 
 @user_router.get("/")
 async def hello(Authorize: AuthJWT = Depends()):
@@ -103,23 +64,6 @@ async def get_user_info(Authorize: AuthJWT = Depends(),
     default_address = next((a for a in user.addresses if a.is_default), None)
     if not default_address and user.addresses:
         default_address = user.addresses[0]
-
-    # # Build nested list of addresses
-    # address_models = [
-    #     AddressResponseModel(
-    #         address_type=a.address_type.code if a.address_type else None,
-    #         street_address1=a.street_address1,
-    #         street_address2=a.street_address2,
-    #         postal_code=a.postal_code,
-    #         city=a.city,
-    #         state=a.state,
-    #         country=a.country,
-    #         full_address=a.full_address,
-    #         is_default=a.is_default,
-    #         updated_at=a.updated_at
-    #     )
-    #     for a in user.addresses
-    # ]
 
     response = UserResponseModel(
         username=user.username,
@@ -178,23 +122,6 @@ async def get_all_users(Authorize: AuthJWT = Depends(),
         if not default_address and user.addresses:
             default_address = user.addresses[0]
 
-        # # Build nested list of addresses
-        # address_models = [
-        #     AddressResponseModel(
-        #         address_type=a.address_type.code if a.address_type else None,
-        #         street_address1=a.street_address1,
-        #         street_address2=a.street_address2,
-        #         postal_code=a.postal_code,
-        #         city=a.city,
-        #         state=a.state,
-        #         country=a.country,
-        #         full_address=a.full_address,
-        #         is_default=a.is_default,
-        #         updated_at=a.updated_at
-        #     )
-        #     for a in user.addresses
-        # ]
-
         user_list.append(
             UserResponseModel(
                 id=user.id,
@@ -220,7 +147,7 @@ async def get_all_users(Authorize: AuthJWT = Depends(),
 
 
 # Update User Info Route
-@user_router.put("/update/", response_model=UserResponseModel, 
+@user_router.put("/update_biodata", response_model=UserResponseModel, 
                      status_code=status.HTTP_200_OK)
 async def update_user_info(user_update: UserUpdateModel, Authorize: AuthJWT = Depends(), 
                            db: AsyncSession = Depends(get_async_db)):
@@ -310,7 +237,7 @@ async def update_user_info(user_update: UserUpdateModel, Authorize: AuthJWT = De
     return jsonable_encoder(response)
 
 # Update User Address Info Route
-@user_router.put("/update/address", response_model=AddressResponseModel, 
+@user_router.put("/update_address", response_model=AddressResponseModel, 
                      status_code=status.HTTP_200_OK)
 async def update_user_address(address_update: AddressUpdateModel, Authorize: AuthJWT = Depends(), 
                            db: AsyncSession = Depends(get_async_db)):

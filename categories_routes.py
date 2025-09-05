@@ -5,13 +5,7 @@ from models import User, Category, Product, ProductVariant
 from schemas import (CategoryCreate, CategoryUpdate, CategoryResponse)
 from database_connection.database import get_async_db  # <-- updated import
 from fastapi.exceptions import HTTPException
-from fastapi_jwt_auth.exceptions import (
-    MissingTokenError,
-    InvalidHeaderError,
-    RevokedTokenError,
-    AccessTokenRequired,
-    JWTDecodeError
-)
+from auth_routes import require_jwt
 from fastapi.encoders import jsonable_encoder
 from datetime import datetime
 from uuid import UUID 
@@ -22,38 +16,6 @@ from redis_blacklist import add_token_to_blocklist, is_token_blocklisted
 
 # --- FastAPI Routers ---
 category_router = APIRouter()
-
-async def require_jwt(Authorize: AuthJWT = Depends()):
-    try:
-        Authorize.jwt_required()
-        raw_token = Authorize.get_raw_jwt()['jti']
-        if is_token_blocklisted(raw_token):
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid or expired token"
-            )
-    except MissingTokenError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authorization token is missing")
-    except InvalidHeaderError:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Invalid JWT header format")
-    except JWTDecodeError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired JWT token")
-    except RevokedTokenError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token has been revoked")
-    except AccessTokenRequired:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Access token is required")
-    
-    return Authorize.get_jwt_subject()
 
 @category_router.get("/")
 async def hello(Authorize: AuthJWT = Depends()):
