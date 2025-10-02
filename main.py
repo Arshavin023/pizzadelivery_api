@@ -1,13 +1,13 @@
 import inspect, re
 from fastapi import FastAPI
-from auth_routes import auth_router
-from users_routes import user_router
-from order_routes import order_router
-from categories_routes import category_router
-from products_routes import products_router
-from product_variants_routes import product_variants_router
+from Authentication.auth_routes import auth_router
+from Users.users_routes import user_router
+from Orders.order_routes import order_router
+from Products.categories_routes import category_router
+from Products.products_routes import products_router
+from Products.product_variants_routes import product_variants_router
 from fastapi_jwt_auth import AuthJWT
-from schemas import Settings
+from Schemas.schemas import Settings
 from fastapi.routing import APIRoute
 from fastapi.openapi.utils import get_openapi
 

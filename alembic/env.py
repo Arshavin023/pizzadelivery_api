@@ -8,7 +8,7 @@ from alembic import context
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 # 🔁 Adjust this import to point to your models file
-from models import Base  # If you use declarative_base()
+from Models.models import Base  # If you use declarative_base()
 # from database import db  # Uncomment if you use Flask-SQLAlchemy style
 
 config = context.config
