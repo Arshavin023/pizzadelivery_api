@@ -2,10 +2,12 @@ from fastapi import APIRouter, status, Depends
 from sqlalchemy import exists
 from datetime import timedelta, datetime
 from sqlalchemy.orm import Session as Session_v2
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from Schemas.schemas import SignUpModel,UserResponseModel,LoginModel
 from Models.models import User, Address
 from sqlalchemy.ext.asyncio import AsyncSession
 from database_connection.database import get_async_db  # <-- updated import
+from sqlalchemy.sql import text # <-- Needed for RLS context setup later
 from fastapi.exceptions import HTTPException
 from werkzeug.security import generate_password_hash, check_password_hash
 from fastapi_jwt_auth import AuthJWT
@@ -36,7 +38,7 @@ auth_router = APIRouter()
 async def require_jwt(Authorize: AuthJWT = Depends()):
     try:
         Authorize.jwt_required()
-        raw_token:str = Authorize.get_raw_jwt()['jti']
+        raw_token = Authorize.get_raw_jwt()['jti']
         if await is_token_blocklisted(raw_token):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -63,21 +65,102 @@ async def require_jwt(Authorize: AuthJWT = Depends()):
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Access token is required")
     
-    return Authorize.get_jwt_subject()
+    # Extract the tenant_id from the claims
+    claims = Authorize.get_raw_jwt()
+    tenant_id = claims.get("tenant_id")
+
+    if not tenant_id:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
+                            detail="Tenant information missing from token.")
+    
+    user_id = Authorize.get_jwt_subject()
+    print(user_id, tenant_id)
+    
+    return user_id, tenant_id
+    # try:
+    #     # Return both the user ID and the tenant ID (as integers)
+    #     return int(user_id), int(tenant_id)
+    # except ValueError:
+    #     raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
+    #                         detail="Invalid ID format in JWT.")
+    
+
+# In auth_routes.py (or a new file)
+# Note: You need 'from sqlalchemy.sql import text' imported above
+
+# In auth_routes.py or dependencies.py
+
+# The require_jwt function will need a small modification:
+# async def require_jwt(Authorize: AuthJWT = Depends()):
+#     # ... (JWT validation and blocklist check remain the same) ...
+    
+#     # The subject is the User ID (PK) as a string
+#     user_id_str = Authorize.get_jwt_subject()
+    
+#     # Extract the tenant_id from the claims
+#     claims = Authorize.get_raw_jwt()
+#     tenant_id_str = claims.get("tenant_id") 
+    
+#     if not tenant_id_str:
+#         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
+#                             detail="Tenant information missing from token.")
+    
+#     try:
+#         # Return both the user ID and the tenant ID (as integers)
+#         return int(user_id_str), int(tenant_id_str)
+#     except ValueError:
+#         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
+#                             detail="Invalid ID format in JWT.")
+
+
+# --- THE NEW TENANT RLS DEPENDENCY ---
+async def set_tenant_rls_context(
+    auth_data: tuple[int, int] = Depends(require_jwt), # Returns (user_id, tenant_id)
+    db: AsyncSession = Depends(get_async_db)
+    ) -> int:
+    """
+    Sets the current authenticated user's Tenant ID in the PostgreSQL session variable.
+    This enables Tenant-Level RLS and Partition Pruning.
+    """
+    
+    # Unpack the tuple: (user_id, tenant_id)
+    user_id, tenant_id = auth_data
+    
+    # 1. Set the RLS context using the TENANT ID
+    try:
+        # Set session variable for tenant
+        await db.execute(
+            text("SELECT set_config('session.current_tenant_id', :tenant_id::text, false)")
+            .bindparams(tenant_id=tenant_id)
+        )
+        
+        # OPTIONAL: You may also set the user_id for granular user-level policies
+        # await db.execute(
+        #     text("SELECT set_config('session.current_user_id', :user_id::text, false)")
+        #     .bindparams(user_id=user_id)
+        # )
+
+    except Exception as e:
+        print(f"ERROR: Tenant RLS Context Setup failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Database context security setup failed."
+        )
+        
+    # Return the tenant_id for the FastAPI route to optionally use
+    return tenant_id
 
 # HomePage Route
 @auth_router.get("/")
-async def hello(Authorize: AuthJWT = Depends()):
+async def hello():
     """
         ## A sample route to test JWT authentication.
         This route requires a valid JWT token to access.
         It returns a simple message "Hello World" if the token is valid.
         ### JWT Authentication Required
         - The JWT token must be included in the request header as `Authorization    Bearer <token>`.      
-    """
-    await require_jwt(Authorize)
-    
-    return {"message": "Hello World"}
+    """    
+    return {"message": "Hello World from the Pizza Delivery API Auth Service"}
 
 # SignUp Route
 @auth_router.post("/register",response_model=None, 
@@ -184,25 +267,32 @@ async def login(user: LoginModel,
     - The JWT token must be included in the request header as `Authorization Bearer <token>`.
     """
     
-    result = await db.execute(select(User.username, User.password, 
+    result = await db.execute(select(User.id, User.username, User.password, User.tenant_id,
                                      User.is_staff).where(User.username==user.username))
-    db_user = result.first()
+    
+    db_user = result.first() # Tuple with (id, username, password, is_staff, tenant_id)
     
     if not db_user or not check_password_hash(db_user.password, user.password):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, 
                             detail="Invalid username or password")
     
+    # 2. Add tenant_id to the user_claims (private claims)
     access_token = Authorize.create_access_token(
-        subject=db_user.username,
+        subject=str(db_user.id),
         expires_time=timedelta(minutes=15),
-        user_claims={"is_staff": db_user.is_staff}
-        )
-    refresh_token = Authorize.create_refresh_token(subject=db_user.username,
+        user_claims={
+            "is_staff": db_user.is_staff,
+            "tenant_id": str(db_user.tenant_id) # Store as string for JWT
+        }
+    )
+    refresh_token = Authorize.create_refresh_token(subject=str(db_user.id),
                                                    expires_time=timedelta(days=7))
     response = {
         "access": access_token,
         "refresh": refresh_token,
-        "token_type": "bearer"
+        "token_type": "bearer",
+        "user_id": db_user.id,
+        "tenant_id": db_user.tenant_id # Optional: return the ID to the client
     }
     return jsonable_encoder(response)
 

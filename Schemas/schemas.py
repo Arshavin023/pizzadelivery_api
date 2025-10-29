@@ -87,7 +87,6 @@ class AddressUpdateModel(BaseModel):
     is_default: bool
 
 class AddressResponseModel(BaseModel):
-    id: Optional[str]
     address_type: AddressType = AddressType.HOME
     street_address1: Optional[str]
     street_address2: Optional[str]
