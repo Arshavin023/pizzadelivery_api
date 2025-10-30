@@ -182,7 +182,7 @@ class CategoryCreate(CategoryBase):
     pass
 
 class CategoryUpdate(CategoryBase):
-    name: Optional[str] = Field(None, max_length=50) # Make name optional for updates
+    # name: Optional[str] = Field(None, max_length=50) # Make name optional for updates
     description: Optional[str] = None
     parent_id: Optional[UUID4] = None
 
@@ -199,29 +199,28 @@ class ProductBase(BaseModel):
     name: str = Field(..., max_length=100)
     description: Optional[str] = None
     base_price: float = Field(..., ge=0) # Using float for Pydantic, will be Numeric in DB
-    category_id: UUID4
-    is_active: bool = True
+    category_id: Optional[UUID4]
+    is_active: bool = False
     image_url: Optional[str] = Field(None, max_length=255)
 
 class ProductCreate(ProductBase):
     pass
 
 class ProductUpdate(ProductBase):
-    name: Optional[str] = Field(None, max_length=100)
-    description: Optional[str] = None
-    base_price: Optional[float] = Field(None, ge=0)
-    category_id: Optional[UUID4] = None
-    is_active: Optional[bool] = None
+    # name: Optional[str] = Field(None, max_length=100)
+    # description: Optional[str] = None
+    # base_price: Optional[float] = Field(None, ge=0)
+    # is_active: Optional[bool] = None
     image_url: Optional[str] = Field(None, max_length=255)
 
 class ProductResponse(ProductBase):
     # id: UUID4
-    name: Optional[str] = Field(None, max_length=100)
+    # name: Optional[str] = Field(None, max_length=100)
     description: Optional[str] = None
-    base_price: Optional[float] = Field(None, ge=0)
+    # base_price: Optional[float] = Field(None, ge=0)
     category: Optional[CategoryResponse] = None # Include category details in response
-    is_active: Optional[bool] = None
-    image_url: Optional[str] = Field(None, max_length=255)
+    # is_active: Optional[bool] = None
+    # image_url: Optional[str] = Field(None, max_length=255)
     updated_at: Optional[datetime]
 
     class Config:
@@ -238,9 +237,9 @@ class ProductVariantCreate(ProductVariantBase):
     pass
 
 class ProductVariantUpdate(ProductVariantBase):
-    product_id: Optional[UUID4] = None
-    name: Optional[str] = Field(None, max_length=50)
-    price_modifier: Optional[float] = Field(None, ge=0)
+    # product_id: Optional[UUID4] = None
+    # name: Optional[str] = Field(None, max_length=50)
+    # price_modifier: Optional[float] = Field(None, ge=0)
     sku: Optional[str] = Field(None, max_length=50)
 
 class ProductVariantResponse(ProductVariantBase):

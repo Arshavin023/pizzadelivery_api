@@ -113,7 +113,8 @@ async def create_product_variant(variant_data: ProductVariantCreate,
                 detail="Failed to generate a unique SKU. Please try again."
             )
 
-@product_variants_router.get("/{variant_id}", response_model=ProductVariantResponse)
+@product_variants_router.get("/{variant_id}", 
+                             response_model=ProductVariantResponse)
 async def get_product_variant(variant_id: UUID, 
                               db: AsyncSession = Depends(get_async_db)):
     """
@@ -130,7 +131,8 @@ async def get_product_variant(variant_id: UUID,
     # Return the variant as a ProductVariantResponse
     return ProductVariantResponse.from_orm(variant)
 
-@product_variants_router.get("/product_variants/", response_model=List[ProductVariantResponse])
+@product_variants_router.get("/product_variants/", 
+                             response_model=List[ProductVariantResponse])
 async def get_all_product_variants(db: AsyncSession = Depends(get_async_db)):
     """
     ## Get All Product Variants
