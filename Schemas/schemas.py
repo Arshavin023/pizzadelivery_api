@@ -26,7 +26,7 @@ class SignUpModel(BaseModel):
     It includes fields for all necessary user information and provides an example for reference.
     The `Config` class includes settings for JSON schema generation and example data.       
     """
-    id:Optional[UUID4]
+    # id:Optional[UUID4]
     username:str
     email:str
     password:str
@@ -176,19 +176,19 @@ class UserListResponseModel(BaseModel):
 class CategoryBase(BaseModel):
     name: str = Field(..., max_length=50)
     description: Optional[str] = None
-    parent_id: Optional[UUID4] = None  # Optional parent category for subcategories
 
 class CategoryCreate(CategoryBase):
     pass
 
 class CategoryUpdate(CategoryBase):
+    pass
     # name: Optional[str] = Field(None, max_length=50) # Make name optional for updates
-    description: Optional[str] = None
-    parent_id: Optional[UUID4] = None
+    # description: Optional[str] = None
+    # parent_id: Optional[UUID4] = None
 
 class CategoryResponse(CategoryBase):
-    name: str = Field(..., max_length=50)
-    description: Optional[str] = None
+    # name: str = Field(..., max_length=50)
+    # description: Optional[str] = None
     updated_at: Optional[datetime]
 
     class Config:
@@ -198,29 +198,21 @@ class CategoryResponse(CategoryBase):
 class ProductBase(BaseModel):
     name: str = Field(..., max_length=100)
     description: Optional[str] = None
+
+class ProductCreate(ProductBase):
     base_price: float = Field(..., ge=0) # Using float for Pydantic, will be Numeric in DB
-    category_id: Optional[UUID4]
+    # category_id: Optional[UUID4]
     is_active: bool = False
     image_url: Optional[str] = Field(None, max_length=255)
 
-class ProductCreate(ProductBase):
-    pass
-
 class ProductUpdate(ProductBase):
-    # name: Optional[str] = Field(None, max_length=100)
-    # description: Optional[str] = None
-    # base_price: Optional[float] = Field(None, ge=0)
-    # is_active: Optional[bool] = None
+    base_price: float = Field(..., ge=0) # Using float for Pydantic, will be Numeric in DB
+    # category_id: Optional[UUID4]
+    is_active: bool = False
     image_url: Optional[str] = Field(None, max_length=255)
 
 class ProductResponse(ProductBase):
-    # id: UUID4
-    # name: Optional[str] = Field(None, max_length=100)
-    description: Optional[str] = None
-    # base_price: Optional[float] = Field(None, ge=0)
     category: Optional[CategoryResponse] = None # Include category details in response
-    # is_active: Optional[bool] = None
-    # image_url: Optional[str] = Field(None, max_length=255)
     updated_at: Optional[datetime]
 
     class Config:
