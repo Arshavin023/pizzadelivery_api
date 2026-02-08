@@ -1,15 +1,18 @@
-from fastapi import APIRouter, status, Depends
+from fastapi import APIRouter, status, Depends, BackgroundTasks, responses
+# from fastapi.responses import RedirectResponse
+from fastapi_mail import FastMail, MessageSchema, ConnectionConfig
 from sqlalchemy import exists
 from datetime import timedelta, datetime
 from sqlalchemy.orm import Session as Session_v2
-from Schemas.schemas import SignUpModel,UserResponseModel,LoginModel
+from Schemas.schemas_old import SignUpModel,UserResponseModel,LoginModel
 from Models.models import User, Address
 from sqlalchemy.ext.asyncio import AsyncSession
 from database_connection.database import get_async_db  # <-- updated import
 from fastapi.exceptions import HTTPException
 from werkzeug.security import generate_password_hash, check_password_hash
-from fastapi_jwt_auth import AuthJWT
-from fastapi_jwt_auth.exceptions import (
+from db_config.db_config import read_db_config
+from fastapi_jwt_auth2 import AuthJWT
+from fastapi_jwt_auth2.exceptions import (
     MissingTokenError,
     InvalidHeaderError,
     RevokedTokenError,
@@ -23,6 +26,22 @@ from email_validator import validate_email, EmailNotValidError
 import re
 from zxcvbn import zxcvbn
 from Redis_Caching.redis_blacklist import add_token_to_blocklist, is_token_blocklisted
+from jose import jwt, JWTError
+from datetime import datetime, timedelta
+
+SECRET_KEY:str = read_db_config()['jwt_token']
+ALGORITHM = "HS256"
+# Configure your SMTP settings
+conf = ConnectionConfig(
+    MAIL_USERNAME = "uchejudennodim@gmail.com",
+    MAIL_PASSWORD = read_db_config()['google_app_password'],
+    MAIL_FROM = "uchejudennodim@gmail.com",
+    MAIL_PORT = 587,
+    MAIL_SERVER = "smtp.gmail.com",
+    MAIL_STARTTLS = True,
+    MAIL_SSL_TLS = False,
+    USE_CREDENTIALS = True
+)
 
 # Add this phone validation pattern
 PHONE_REGEX = re.compile(r'^\+?[1-9]\d{1,14}$')  # E.164 format
@@ -31,6 +50,18 @@ def is_password_strong(password:str):
     result = zxcvbn(password)
     return result['score'] >= 3  # Require minimum strength score
 
+def create_verification_token(email: str):
+    expire = datetime.now() + timedelta(hours=24)
+    to_encode = {"exp": expire, "sub": email}
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
+def verify_token(token: str):
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        return payload.get("sub")
+    except JWTError:
+        return None
+    
 auth_router = APIRouter()
 
 async def require_jwt(Authorize: AuthJWT = Depends()):
@@ -83,6 +114,7 @@ async def hello(Authorize: AuthJWT = Depends()):
 @auth_router.post("/register",response_model=None, 
                   status_code=status.HTTP_201_CREATED)
 async def signup(user: SignUpModel,
+                 background_tasks: BackgroundTasks,
                  db: AsyncSession = Depends(get_async_db)):
     """
     ## User Registration
@@ -151,22 +183,51 @@ async def signup(user: SignUpModel,
         password=generate_password_hash(user.password),
         first_name=user.first_name,
         last_name=user.last_name,
-        phone_number=user.phone_number,
-        is_staff=user.is_staff,
-        is_active=user.is_active
+        phone_number=user.phone_number
     )
     db.add(new_user)
     await db.commit()
     await db.refresh(new_user)
+    
+    token = create_verification_token(user.email)
+    verification_url = f"http://localhost:8000/api/auth/verify/{token}"
 
-    new_address = Address(
-            user_id=new_user.id  # This populates the foreign key
-        )
-    db.add(new_address)
+    # Send Email in Background
+    message = MessageSchema(
+        subject="Account Verification",
+        recipients=[user.email],
+        body=f"Click the link to verify your account: {verification_url}",
+        subtype="html"
+    )
+    fm = FastMail(conf)
+    background_tasks.add_task(fm.send_message, message)
+
+    return jsonable_encoder({"message": "User created. Please check your email to verify your account."})
+
+# Verify Email Route
+@auth_router.get("/verify/{token}")
+async def verify_email(token: str, db: AsyncSession = Depends(get_async_db)):
+    email = verify_token(token)
+    if not email:
+        raise HTTPException(status_code=400, detail="Invalid or expired token")
+
+    result = await db.execute(select(User).where(User.email == email))
+    user = result.scalar_one_or_none()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if user.is_active:
+        return {"message": "Account already verified"}
+
+    user.is_active = True
     await db.commit()
+
+    return {"message": "Account verified successfully!"}
     
-    return jsonable_encoder({"message": "User created successfully"})
-    
+    # Redirect the user to your frontend login page
+    # return RedirectResponse(url="https://yourfrontend.com/login?status=success")
+
 # Login Route
 @auth_router.post("/login")
 async def login(user: LoginModel, 

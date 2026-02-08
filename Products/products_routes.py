@@ -1,8 +1,8 @@
 from fastapi import APIRouter, status, Depends
-from fastapi_jwt_auth import AuthJWT
+from fastapi_jwt_auth2 import AuthJWT
 from typing import List
 from Models.models import User, Category, Product, ProductVariant
-from Schemas.schemas import (ProductCreate, ProductUpdate, ProductResponse, ProductVariantCreate, 
+from Schemas.schemas_old import (ProductCreate, ProductUpdate, ProductResponse, ProductVariantCreate, 
                      ProductVariantUpdate, ProductVariantResponse)
 
 from database_connection.database import get_async_db  # <-- updated import
@@ -83,19 +83,17 @@ async def create_product(product_data: ProductCreate,
         await db.refresh(new_product, attribute_names=["category"])
         return ProductResponse.from_orm(new_product)
 
-@products_router.get("/{product_name}", response_model=ProductResponse)
-async def get_product(product_name: str, 
+@products_router.get("/{product_id}", response_model=ProductResponse)
+async def get_product(product_id: str, 
                       db: AsyncSession = Depends(get_async_db)):
     """
     ## Get Product by Name
     This route retrieves a single product by its ID, including its associated category.
     """    
-    search_pattern = f"%{product_name}%"
-
     product_result = await db.execute(
         select(Product)
             .options(selectinload(Product.category))  #eager-load category
-            .where(Product.name.ilike(search_pattern))
+            .where(Product.id==product_id)
         )
 
     product = product_result.scalar_one_or_none()
@@ -116,7 +114,7 @@ async def get_all_products(
     products = products_result.scalars().all()
     return products
 
-@products_router.put("/update/{product_name}", response_model=ProductResponse)
+@products_router.put("/update/{product_id}", response_model=ProductResponse)
 async def update_product(
     product_name: str, 
     product_update: ProductUpdate, 
@@ -143,17 +141,14 @@ async def update_product(
             )
         
         # Eager-load relationships needed by ProductResponse (e.g., Category)
-        eager_load_options = [
-            selectinload(Product.category), 
-            # Add any other required relationships here, e.g., selectinload(Product.variants)
-        ]
+        eager_load_options = [selectinload(Product.category),]
 
         try:
             # *** FIX APPLIED HERE: Add the eager-loading options ***
             product_result = await db.execute(
                 select(Product)
                 .options(*eager_load_options) 
-                .where(Product.name.ilike(search_pattern))
+                .where(Product.id==product_id)
             )
 
         # try:

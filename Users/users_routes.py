@@ -1,7 +1,7 @@
 from fastapi import APIRouter, status, Depends
-from fastapi_jwt_auth import AuthJWT
+from fastapi_jwt_auth2 import AuthJWT
 from Models.models import User, Address
-from Schemas.schemas import (UserResponseModel, UserUpdateModel, UserListResponseModel, 
+from Schemas.schemas_old import (UserResponseModel, UserUpdateModel, UserListResponseModel, 
                      AddressResponseModel,AddressUpdateModel)
 from database_connection.database import get_async_db  # <-- updated import
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -205,23 +205,6 @@ async def update_user_info(user_update: UserUpdateModel, Authorize: AuthJWT = De
     default_address = next((a for a in updated_user.addresses if a.is_default), None)
     if not default_address and updated_user.addresses:
         default_address = updated_user.addresses[0]
-
-    # address_models = [
-    #     AddressResponseModel(
-    #         id=addr.id,
-    #         address_type=addr.address_type.code if addr.address_type else None,
-    #         street_address1=addr.street_address1,
-    #         street_address2=addr.street_address2,
-    #         postal_code=addr.postal_code,
-    #         city=addr.city,
-    #         state=addr.state,
-    #         country=addr.country,
-    #         full_address=addr.full_address,
-    #         is_default=addr.is_default,
-    #         updated_at=addr.updated_at
-    #     )
-    #     for addr in updated_user.addresses
-    # ]
 
     response = UserResponseModel(
         # id=updated_user.id,

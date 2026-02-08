@@ -1,8 +1,8 @@
 from fastapi import APIRouter, status, Depends
-from fastapi_jwt_auth import AuthJWT
+from fastapi_jwt_auth2 import AuthJWT
 from typing import List
 from Models.models import User, Category, Product, ProductVariant
-from Schemas.schemas import (ProductVariantCreate, ProductVariantUpdate, ProductVariantResponse)
+from Schemas.schemas_old import (ProductVariantCreate, ProductVariantUpdate, ProductVariantResponse)
 from database_connection.database import get_async_db  # <-- updated import
 from fastapi.exceptions import HTTPException
 from Authentication.auth_routes import require_jwt

@@ -6,8 +6,9 @@ from Orders.order_routes import order_router
 from Products.categories_routes import category_router
 from Products.products_routes import products_router
 from Products.product_variants_routes import product_variants_router
-from fastapi_jwt_auth import AuthJWT
-from Schemas.schemas import Settings
+from Payments.payment_routes import payment_router
+from fastapi_jwt_auth2 import AuthJWT
+from Schemas.schemas_old import Settings
 from fastapi.routing import APIRoute
 from fastapi.openapi.utils import get_openapi
 
@@ -72,6 +73,7 @@ def get_config():
 app.include_router(auth_router, prefix="/api/auth", tags=["Authentication"])
 app.include_router(user_router, prefix="/api/users", tags=["Users"])
 app.include_router(order_router, prefix="/api/orders", tags=["Orders"])
+app.include_router(payment_router, prefix="/api/payments", tags=["Payments"])
 app.include_router(category_router, prefix="/api/product-categories", tags=["Categories"])
 app.include_router(products_router, prefix="/api/products", tags=["Products"])
 app.include_router(product_variants_router, prefix="/api/product-variants", tags=["Product Variants"])

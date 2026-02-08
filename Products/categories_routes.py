@@ -1,8 +1,8 @@
 from fastapi import APIRouter, status, Depends
-from fastapi_jwt_auth import AuthJWT
+from fastapi_jwt_auth2 import AuthJWT
 from typing import List
 from Models.models import User, Category, Product, ProductVariant
-from Schemas.schemas import (CategoryCreate, CategoryUpdate, CategoryResponse)
+from Schemas.schemas_old import (CategoryCreate, CategoryUpdate, CategoryResponse)
 from database_connection.database import get_async_db  # <-- updated import
 from fastapi.exceptions import HTTPException
 from Authentication.auth_routes import require_jwt
@@ -70,17 +70,16 @@ async def create_category(category_data: CategoryCreate,
     return CategoryResponse.from_orm(new_category)
 
 # Get a category by ID
-@category_router.get("/retrieve/{category_name}", response_model=CategoryResponse)
-async def get_category(category_name: str, 
+@category_router.get("/retrieve/{category_id}", response_model=CategoryResponse)
+async def get_category(category_id: str, 
                        db: AsyncSession = Depends(get_async_db)):
     """
     ## Get Category by ID
     This route retrieves a single category by its ID.
     """
-    search_pattern = f"%{category_name}%"
     # await require_jwt(Authorize)
     category_result = await db.execute(
-        select(Category).where(Category.name.ilike(search_pattern))
+        select(Category).where(Category.id == category_id)
     )
     category = category_result.scalar_one_or_none()
     if not category:
@@ -100,9 +99,9 @@ async def get_all_categories(
     categories = categories_result.scalars().all()
     return categories
 
-@category_router.put("/update/{category_name}", response_model=CategoryResponse)
+@category_router.put("/update/{category_id}", response_model=CategoryResponse)
 async def update_category(
-    category_name: str, # <--- Expecting category name as a string
+    category_id: str, # <--- Expecting category name as a string
     category_update: CategoryUpdate, 
     Authorize: AuthJWT = Depends(),
     db: AsyncSession = Depends(get_async_db)
@@ -112,7 +111,6 @@ async def update_category(
     This route updates an existing category by its name (case-insensitive search).
     ### Security: Staff/Admin required.
     """
-    category_name = f"%{category_name}%"
     current_user = await require_jwt(Authorize)
 
     async with db.begin():
@@ -131,7 +129,7 @@ async def update_category(
         try:
             category_result = await db.execute(
                 # Using ILIKE for case-insensitive exact match
-                select(Category).where(Category.name.ilike(category_name))
+                select(Category).where(Category.id==category_id)
             )
             category = category_result.scalar_one_or_none()
             
@@ -140,13 +138,13 @@ async def update_category(
             # (e.g., 'Pizza' and 'pizza' were somehow created)
              raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail=f"Multiple categories matching '{category_name}' found. Cannot proceed."
+                detail=f"Multiple categories matching '{category_id}' found. Cannot proceed."
             )
             
         if not category:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, 
-                detail=f"Category with name '{category_name}' not found"
+                detail=f"Category with name '{category_id}' not found"
             )
                 
         # 3. Update the category fields
@@ -159,8 +157,8 @@ async def update_category(
     await db.refresh(category)
     return CategoryResponse.from_orm(category)
 
-@category_router.delete("/delete/{category_name}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_category(category_name: str, 
+@category_router.delete("/delete/{category_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_category(category_id: str, 
                           Authorize: AuthJWT = Depends(),
                           db: AsyncSession = Depends(get_async_db)):
     """
@@ -172,7 +170,6 @@ async def delete_category(category_name: str,
     deletes its variants. Deleting a Category does NOT automatically delete Products
     unless your database foreign key constraint is set to `ON DELETE CASCADE`.
     """
-    category_name = f"%{category_name}%"
     current_user = await require_jwt(Authorize)
 
     async with db.begin():
@@ -191,7 +188,7 @@ async def delete_category(category_name: str,
         try:
             category_result = await db.execute(
                 # Using ILIKE for case-insensitive exact match
-                select(Category).where(Category.name.ilike(category_name))
+                select(Category).where(Category.id==category_id)
             )
             category = category_result.scalar_one_or_none()
             
@@ -200,13 +197,13 @@ async def delete_category(category_name: str,
             # (e.g., 'Pizza' and 'pizza' were somehow created)
              raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail=f"Multiple categories matching '{category_name}' found. Cannot proceed."
+                detail=f"Multiple categories matching '{category_id}' found. Cannot proceed."
             )
             
         if not category:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, 
-                detail=f"Category with name '{category_name}' not found"
+                detail=f"Category with name '{category_id}' not found"
             )
         
         await db.delete(category)
