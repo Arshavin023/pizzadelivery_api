@@ -1,61 +1,24 @@
 from fastapi import APIRouter, status, Depends
 from fastapi_jwt_auth import AuthJWT
 from typing import List
-from models import User, Category, Product, ProductVariant
-from schemas import (ProductCreate, ProductUpdate, ProductResponse, ProductVariantCreate, 
+from Models.models import User, Category, Product, ProductVariant
+from Schemas.schemas import (ProductCreate, ProductUpdate, ProductResponse, ProductVariantCreate, 
                      ProductVariantUpdate, ProductVariantResponse)
 
 from database_connection.database import get_async_db  # <-- updated import
 from fastapi.exceptions import HTTPException
-from fastapi_jwt_auth.exceptions import (
-    MissingTokenError,
-    InvalidHeaderError,
-    RevokedTokenError,
-    AccessTokenRequired,
-    JWTDecodeError
-)
+from Authentication.auth_routes import require_jwt
 from fastapi.encoders import jsonable_encoder
 from datetime import datetime
 from uuid import UUID 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from redis_blacklist import add_token_to_blocklist, is_token_blocklisted
+from Redis_Caching.redis_blacklist import add_token_to_blocklist, is_token_blocklisted
 from sqlalchemy.orm import selectinload
+from sqlalchemy.exc import MultipleResultsFound # <--- Import for robustness
 
 # --- FastAPI Routers ---
 products_router = APIRouter()
-
-async def require_jwt(Authorize: AuthJWT = Depends()):
-    try:
-        Authorize.jwt_required()
-        raw_token = Authorize.get_raw_jwt()['jti']
-        if is_token_blocklisted(raw_token):
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid or expired token"
-            )
-    except MissingTokenError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authorization token is missing")
-    except InvalidHeaderError:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Invalid JWT header format")
-    except JWTDecodeError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired JWT token")
-    except RevokedTokenError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token has been revoked")
-    except AccessTokenRequired:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Access token is required")
-    
-    return Authorize.get_jwt_subject()
 
 @products_router.get("/")
 async def hello(Authorize: AuthJWT = Depends()):
@@ -120,20 +83,19 @@ async def create_product(product_data: ProductCreate,
         await db.refresh(new_product, attribute_names=["category"])
         return ProductResponse.from_orm(new_product)
 
-@products_router.get("/{product_id}", response_model=ProductResponse)
-async def get_product(product_id: UUID, 
-                      Authorize: AuthJWT = Depends(),
+@products_router.get("/{product_name}", response_model=ProductResponse)
+async def get_product(product_name: str, 
                       db: AsyncSession = Depends(get_async_db)):
     """
-    ## Get Product by ID
+    ## Get Product by Name
     This route retrieves a single product by its ID, including its associated category.
-    """
-    # await require_jwt(Authorize)
-    
+    """    
+    search_pattern = f"%{product_name}%"
+
     product_result = await db.execute(
         select(Product)
             .options(selectinload(Product.category))  #eager-load category
-            .where(Product.id == product_id)
+            .where(Product.name.ilike(search_pattern))
         )
 
     product = product_result.scalar_one_or_none()
@@ -143,32 +105,30 @@ async def get_product(product_id: UUID,
 
 @products_router.get("/products/", response_model=List[ProductResponse])
 async def get_all_products(
-    Authorize: AuthJWT = Depends(),
     db: AsyncSession = Depends(get_async_db)):
     """
     ## Get All Products
     This route retrieves a list of all products, including their associated categories.
     """
-    # await require_jwt(Authorize)
-
     products_result = await db.execute(
         select(Product).options(selectinload(Product.category))
     )
     products = products_result.scalars().all()
     return products
 
-@products_router.put("/update/{product_id}", response_model=ProductResponse)
+@products_router.put("/update/{product_name}", response_model=ProductResponse)
 async def update_product(
-    product_id: UUID, 
+    product_name: str, 
     product_update: ProductUpdate, 
     Authorize: AuthJWT = Depends(),
     db: AsyncSession = Depends(get_async_db)
 ):
     """
     ## Update Product
-    This route updates an existing product by its ID.
+    This route updates an existing product by its name.
     If `category_id` is provided, it will be validated.
     """
+    search_pattern = f"%{product_name}%"
     current_user=await require_jwt(Authorize)
     async with db.begin():
         result = await db.execute(
@@ -182,28 +142,36 @@ async def update_product(
                 detail="You do not have permission to access this resource"
             )
         
-        product_result = await db.execute(
-            select(Product)
-            .options(selectinload(Product.category))  # 👈 Load category eagerly
-            .where(Product.id == product_id)
-        )
+        # Eager-load relationships needed by ProductResponse (e.g., Category)
+        eager_load_options = [
+            selectinload(Product.category), 
+            # Add any other required relationships here, e.g., selectinload(Product.variants)
+        ]
 
-        product = product_result.scalar_one_or_none()
-
-        if not product:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product not found")
-
-        # If category_id is provided in update, verify it exists
-        if product_update.category_id and product_update.category_id != product.category_id:
-            category_result = await db.execute(
-                select(Category).where(Category.id == product_update.category_id)
+        try:
+            # *** FIX APPLIED HERE: Add the eager-loading options ***
+            product_result = await db.execute(
+                select(Product)
+                .options(*eager_load_options) 
+                .where(Product.name.ilike(search_pattern))
             )
-            category = category_result.scalar_one_or_none()
-            if not category:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="New category_id not found."
-                )
+
+        # try:
+        #     product_result = await db.execute(
+        #         select(Product).where(Product.name.ilike(search_pattern))
+        #     )
+            product = product_result.scalar_one_or_none()
+        except MultipleResultsFound:
+            # Handle the highly unlikely case where two categories only differ by case
+            # (e.g., 'Pizza' and 'pizza' were somehow created)
+             raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Multiple categories matching '{product_name}' found. Cannot proceed."
+            )
+        
+        if not product:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, 
+                                detail=f"Product with name {product_name} not found")
 
         update_data = product_update.dict(exclude_unset=True)
         for field, value in update_data.items():
@@ -213,16 +181,17 @@ async def update_product(
     await db.refresh(product)
     return ProductResponse.from_orm(product)
 
-@products_router.delete("/delete/{product_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_product(product_id: UUID, 
+@products_router.delete("/delete/{product_name}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_product(product_name: str, 
                          Authorize: AuthJWT = Depends(),
                          db: AsyncSession = Depends(get_async_db)):
     """
     ## Delete Product
-    This route deletes a product by its ID.
+    This route deletes a product by its name.
     Due to `cascade='all, delete-orphan'` on `Product.variants`, deleting a product will
     automatically delete all its associated product variants.
     """
+    search_pattern = f"%{product_name}%"
     current_user = await require_jwt(Authorize)
     async with db.begin():
         result = await db.execute(
@@ -236,13 +205,21 @@ async def delete_product(product_id: UUID,
                 detail="You do not have permission to access this resource"
             )
         
-        product_result = await db.execute(
-            select(Product).where(Product.id == product_id)
-        )
-        product = product_result.scalar_one_or_none()
-
+        try:
+            product_result = await db.execute(
+                select(Product).where(Product.name.ilike(search_pattern))
+            )
+            product = product_result.scalar_one_or_none()
+        except MultipleResultsFound:
+            # Handle the highly unlikely case where two categories only differ by case
+            # (e.g., 'Pizza' and 'pizza' were somehow created)
+             raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Multiple categories matching '{product_name}' found. Cannot proceed."
+            )
+        
         if not product:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product not found")
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, 
+                                detail=f"Product with name {product_name} not found")
 
         await db.delete(product)
-        # No explicit commit needed here, db.begin() handles it on exit

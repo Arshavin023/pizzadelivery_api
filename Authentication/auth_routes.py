@@ -2,25 +2,32 @@ from fastapi import APIRouter, status, Depends
 from sqlalchemy import exists
 from datetime import timedelta, datetime
 from sqlalchemy.orm import Session as Session_v2
-from schemas import SignUpModel,UserResponseModel,LoginModel
-from models import User, Address
+from Schemas.schemas import SignUpModel,UserResponseModel,LoginModel
+from Models.models import User, Address
 from sqlalchemy.ext.asyncio import AsyncSession
 from database_connection.database import get_async_db  # <-- updated import
 from fastapi.exceptions import HTTPException
 from werkzeug.security import generate_password_hash, check_password_hash
 from fastapi_jwt_auth import AuthJWT
+from fastapi_jwt_auth.exceptions import (
+    MissingTokenError,
+    InvalidHeaderError,
+    RevokedTokenError,
+    AccessTokenRequired,
+    JWTDecodeError
+)
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 from email_validator import validate_email, EmailNotValidError
 import re
 from zxcvbn import zxcvbn
-from redis_blacklist import add_token_to_blocklist, is_token_blocklisted
+from Redis_Caching.redis_blacklist import add_token_to_blocklist, is_token_blocklisted
 
 # Add this phone validation pattern
 PHONE_REGEX = re.compile(r'^\+?[1-9]\d{1,14}$')  # E.164 format
 
-def is_password_strong(password):
+def is_password_strong(password:str):
     result = zxcvbn(password)
     return result['score'] >= 3  # Require minimum strength score
 
@@ -29,22 +36,33 @@ auth_router = APIRouter()
 async def require_jwt(Authorize: AuthJWT = Depends()):
     try:
         Authorize.jwt_required()
-        raw_token = Authorize.get_raw_jwt()['jti']
-        if is_token_blocklisted(raw_token):
+        raw_token:str = Authorize.get_raw_jwt()['jti']
+        if await is_token_blocklisted(raw_token):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid or expired token"
-            )
-
-    except Exception as e:
-        # Catch specific jwt exceptions for better detail
-        if isinstance(e, HTTPException):
-            raise e
-        else:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid or expired token"
-            )
+                detail="Invalid or expired token")
+        
+    except MissingTokenError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authorization token is missing")
+    except InvalidHeaderError:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Invalid JWT header format")
+    except JWTDecodeError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired JWT token")
+    except RevokedTokenError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token has been revoked")
+    except AccessTokenRequired:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Access token is required")
+    
     return Authorize.get_jwt_subject()
 
 # HomePage Route
@@ -225,14 +243,11 @@ async def logout(Authorize: AuthJWT = Depends()):
     """
     try:
         Authorize.jwt_required()
-        raw_token = Authorize.get_raw_jwt()['jti']
-        add_token_to_blocklist(raw_token)
-        print(f"Token {raw_token} has been blocklisted.")
-        return jsonable_encoder({"message": "Logged out successfully"})
-    
-    except Exception as e:
-        # If the token is already invalid or expired, handle it gracefully
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Could not log out. Invalid or expired token provided."
-            )
+        raw_jwt = Authorize.get_raw_jwt()
+        jti = raw_jwt['jti']
+        exp_timestamp = raw_jwt['exp']
+        expires_in = exp_timestamp - int(datetime.now().timestamp())
+        await add_token_to_blocklist(jti, expires_in)
+        return {"message": "Logged out successfully"}
+    except:
+        raise HTTPException(status_code=401, detail="Could not log out.")

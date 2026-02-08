@@ -1,23 +1,17 @@
 from fastapi import APIRouter, status, Depends
 from fastapi_jwt_auth import AuthJWT
 from typing import List
-from models import User, Category, Product, ProductVariant
-from schemas import (ProductVariantCreate, ProductVariantUpdate, ProductVariantResponse)
+from Models.models import User, Category, Product, ProductVariant
+from Schemas.schemas import (ProductVariantCreate, ProductVariantUpdate, ProductVariantResponse)
 from database_connection.database import get_async_db  # <-- updated import
 from fastapi.exceptions import HTTPException
-from fastapi_jwt_auth.exceptions import (
-    MissingTokenError,
-    InvalidHeaderError,
-    RevokedTokenError,
-    AccessTokenRequired,
-    JWTDecodeError
-)
+from Authentication.auth_routes import require_jwt
 from fastapi.encoders import jsonable_encoder
 from datetime import datetime
 from uuid import UUID 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from redis_blacklist import add_token_to_blocklist, is_token_blocklisted
+from Redis_Caching.redis_blacklist import add_token_to_blocklist, is_token_blocklisted
 from sqlalchemy.orm import selectinload
 import uuid
 from sqlalchemy.exc import IntegrityError
@@ -25,38 +19,6 @@ from sqlalchemy.exc import IntegrityError
 
 # --- FastAPI Routers ---
 product_variants_router = APIRouter()
-
-async def require_jwt(Authorize: AuthJWT = Depends()):
-    try:
-        Authorize.jwt_required()
-        raw_token = Authorize.get_raw_jwt()['jti']
-        if is_token_blocklisted(raw_token):
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid or expired token"
-            )
-    except MissingTokenError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authorization token is missing")
-    except InvalidHeaderError:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Invalid JWT header format")
-    except JWTDecodeError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired JWT token")
-    except RevokedTokenError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token has been revoked")
-    except AccessTokenRequired:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Access token is required")
-    
-    return Authorize.get_jwt_subject()
 
 @product_variants_router.get("/")
 async def hello(Authorize: AuthJWT = Depends()):
@@ -151,7 +113,8 @@ async def create_product_variant(variant_data: ProductVariantCreate,
                 detail="Failed to generate a unique SKU. Please try again."
             )
 
-@product_variants_router.get("/{variant_id}", response_model=ProductVariantResponse)
+@product_variants_router.get("/{variant_id}", 
+                             response_model=ProductVariantResponse)
 async def get_product_variant(variant_id: UUID, 
                               db: AsyncSession = Depends(get_async_db)):
     """
@@ -168,7 +131,8 @@ async def get_product_variant(variant_id: UUID,
     # Return the variant as a ProductVariantResponse
     return ProductVariantResponse.from_orm(variant)
 
-@product_variants_router.get("/product_variants/", response_model=List[ProductVariantResponse])
+@product_variants_router.get("/product_variants/", 
+                             response_model=List[ProductVariantResponse])
 async def get_all_product_variants(db: AsyncSession = Depends(get_async_db)):
     """
     ## Get All Product Variants

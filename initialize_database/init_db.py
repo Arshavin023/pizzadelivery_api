@@ -1,5 +1,5 @@
 from database_connection.database import Base, engine
-from models import User, Order, Address, Review, Payment, PaymentGateway, Refund
+from Models.models import User, Order, Address, Review, Payment, PaymentGateway, Refund
 import asyncio
 
 async def init_models():

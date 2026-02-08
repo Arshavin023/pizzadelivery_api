@@ -1,59 +1,22 @@
 from fastapi import APIRouter, status, Depends
 from fastapi_jwt_auth import AuthJWT
 from typing import List
-from models import User, Category, Product, ProductVariant
-from schemas import (CategoryCreate, CategoryUpdate, CategoryResponse)
+from Models.models import User, Category, Product, ProductVariant
+from Schemas.schemas import (CategoryCreate, CategoryUpdate, CategoryResponse)
 from database_connection.database import get_async_db  # <-- updated import
 from fastapi.exceptions import HTTPException
-from fastapi_jwt_auth.exceptions import (
-    MissingTokenError,
-    InvalidHeaderError,
-    RevokedTokenError,
-    AccessTokenRequired,
-    JWTDecodeError
-)
+from Authentication.auth_routes import require_jwt
 from fastapi.encoders import jsonable_encoder
 from datetime import datetime
 from uuid import UUID 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from redis_blacklist import add_token_to_blocklist, is_token_blocklisted
+from Redis_Caching.redis_blacklist import add_token_to_blocklist, is_token_blocklisted
+from sqlalchemy.exc import MultipleResultsFound # <--- Import for robustness
 
 
 # --- FastAPI Routers ---
 category_router = APIRouter()
-
-async def require_jwt(Authorize: AuthJWT = Depends()):
-    try:
-        Authorize.jwt_required()
-        raw_token = Authorize.get_raw_jwt()['jti']
-        if is_token_blocklisted(raw_token):
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid or expired token"
-            )
-    except MissingTokenError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authorization token is missing")
-    except InvalidHeaderError:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Invalid JWT header format")
-    except JWTDecodeError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired JWT token")
-    except RevokedTokenError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token has been revoked")
-    except AccessTokenRequired:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Access token is required")
-    
-    return Authorize.get_jwt_subject()
 
 @category_router.get("/")
 async def hello(Authorize: AuthJWT = Depends()):
@@ -107,17 +70,17 @@ async def create_category(category_data: CategoryCreate,
     return CategoryResponse.from_orm(new_category)
 
 # Get a category by ID
-@category_router.get("/retrieve/{category_id}", response_model=CategoryResponse)
-async def get_category(category_id: UUID, 
-                       Authorize: AuthJWT = Depends(),
+@category_router.get("/retrieve/{category_name}", response_model=CategoryResponse)
+async def get_category(category_name: str, 
                        db: AsyncSession = Depends(get_async_db)):
     """
     ## Get Category by ID
     This route retrieves a single category by its ID.
     """
+    search_pattern = f"%{category_name}%"
     # await require_jwt(Authorize)
     category_result = await db.execute(
-        select(Category).where(Category.id == category_id)
+        select(Category).where(Category.name.ilike(search_pattern))
     )
     category = category_result.scalar_one_or_none()
     if not category:
@@ -127,7 +90,6 @@ async def get_category(category_id: UUID,
 
 @category_router.get("/categories/", response_model=List[CategoryResponse])
 async def get_all_categories(
-    Authorize: AuthJWT = Depends(),
     db: AsyncSession = Depends(get_async_db)):
     """
     ## Get All Categories
@@ -138,20 +100,23 @@ async def get_all_categories(
     categories = categories_result.scalars().all()
     return categories
 
-@category_router.put("/update/{category_id}", response_model=CategoryResponse)
+@category_router.put("/update/{category_name}", response_model=CategoryResponse)
 async def update_category(
-    category_id: UUID, 
+    category_name: str, # <--- Expecting category name as a string
     category_update: CategoryUpdate, 
     Authorize: AuthJWT = Depends(),
     db: AsyncSession = Depends(get_async_db)
     ):
     """
     ## Update Category
-    This route updates an existing category by its ID.
+    This route updates an existing category by its name (case-insensitive search).
+    ### Security: Staff/Admin required.
     """
+    category_name = f"%{category_name}%"
     current_user = await require_jwt(Authorize)
 
     async with db.begin():
+        # 1. Authorization Check (Staff/Admin)
         result = await db.execute(
             select(User.is_staff).where(User.username == current_user)
         )
@@ -161,36 +126,41 @@ async def update_category(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="You do not have permission to access this resource"
             )
-        category_result = await db.execute(
-            select(Category).where(Category.id == category_id)
-        )
-        category = category_result.scalar_one_or_none()
-        if not category:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
-        # Check for unique name
-        existing_category_name = await db.execute(
-            select(Category).where(
-                Category.name.ilike(category_update.name) & 
-                (Category.id != category_id)
+            
+        # 2. Find Category by Name (KEY CHANGE: Using exact ILIKE for case-insensitivity)
+        try:
+            category_result = await db.execute(
+                # Using ILIKE for case-insensitive exact match
+                select(Category).where(Category.name.ilike(category_name))
             )
-        )
-        if existing_category_name.scalar_one_or_none():
-            raise HTTPException(
+            category = category_result.scalar_one_or_none()
+            
+        except MultipleResultsFound:
+            # Handle the highly unlikely case where two categories only differ by case
+            # (e.g., 'Pizza' and 'pizza' were somehow created)
+             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="Category with this name already exists."
+                detail=f"Multiple categories matching '{category_name}' found. Cannot proceed."
             )
-        
-        # Update the category fields
+            
+        if not category:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, 
+                detail=f"Category with name '{category_name}' not found"
+            )
+                
+        # 3. Update the category fields
         update_data = category_update.dict(exclude_unset=True)
         for field, value in update_data.items():
             setattr(category, field, value)
-        await db.commit() # Commit the transaction to save the new category
+            
+        await db.commit() 
     
     await db.refresh(category)
     return CategoryResponse.from_orm(category)
 
-@category_router.delete("/delete/{category_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_category(category_id: UUID, 
+@category_router.delete("/delete/{category_name}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_category(category_name: str, 
                           Authorize: AuthJWT = Depends(),
                           db: AsyncSession = Depends(get_async_db)):
     """
@@ -202,24 +172,41 @@ async def delete_category(category_id: UUID,
     deletes its variants. Deleting a Category does NOT automatically delete Products
     unless your database foreign key constraint is set to `ON DELETE CASCADE`.
     """
+    category_name = f"%{category_name}%"
     current_user = await require_jwt(Authorize)
+
     async with db.begin():
+        # 1. Authorization Check (Staff/Admin)
         result = await db.execute(
             select(User.is_staff).where(User.username == current_user)
         )
         user_row = result.first()
-
         if not user_row or not user_row.is_staff:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="You do not have permission to access this resource"
             )
-        
-        category_result = await db.execute(
-            select(Category).where(Category.id == category_id)
-        )
-        category = category_result.scalar_one_or_none()
-
+            
+        # 2. Find Category by Name (KEY CHANGE: Using exact ILIKE for case-insensitivity)
+        try:
+            category_result = await db.execute(
+                # Using ILIKE for case-insensitive exact match
+                select(Category).where(Category.name.ilike(category_name))
+            )
+            category = category_result.scalar_one_or_none()
+            
+        except MultipleResultsFound:
+            # Handle the highly unlikely case where two categories only differ by case
+            # (e.g., 'Pizza' and 'pizza' were somehow created)
+             raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Multiple categories matching '{category_name}' found. Cannot proceed."
+            )
+            
         if not category:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, 
+                detail=f"Category with name '{category_name}' not found"
+            )
+        
         await db.delete(category)

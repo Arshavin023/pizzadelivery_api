@@ -213,7 +213,6 @@ class ProductUpdate(ProductBase):
 
 class ProductResponse(ProductBase):
     category: Optional[CategoryResponse] = None # Include category details in response
-
     updated_at: Optional[datetime]
 
     class Config:
